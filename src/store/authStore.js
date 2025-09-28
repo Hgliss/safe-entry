@@ -8,8 +8,21 @@ export const useAuthStore = create(
             user: null,
             session: null,
             role: null,
-            loading: false,
+            loading: true,
             error: null,
+
+            initializeAuth: async () =>{
+                const { data: {session} } = await supabase.auth.getSession();
+                const user = session?.user ?? null;
+
+                if (user){
+                    get().setFromSession(user, session);
+                    await get().fechtRole().catch(() => {});
+                }else {
+                    get().logout().catch(() => {})
+                }
+                set({ loading: false });
+            },
 
             //Setea el usuario y la sesion
             setFromSession: (user, session) => set({ user, session }),
@@ -29,6 +42,19 @@ export const useAuthStore = create(
 
                 await get().fetchRole();
                 set({ loading: false});
+            },
+
+            initializeAuth: async () =>{
+                const { data: {session} } = await supabase.auth.getSession();
+                const user = session?.user ?? null;
+
+                if (user){
+                    get().setFromSession(user, session);
+                    await get().fechtRole().catch(() => {});
+                }else {
+                    get().logout().catch(() => {})
+                }
+                set({ loading: false });
             },
 
             //Obtener el rol del usuario por medio de RPC de Supabase
