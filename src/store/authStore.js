@@ -10,20 +10,19 @@ export const useAuthStore = create(
             role: null,
             loading: true,
             error: null,
-
-            initializeAuth: async () =>{
-                const { data: {session} } = await supabase.auth.getSession();
+            
+            // Función interna para manejar la sesión y el rol del usuario
+            _handleSession: async (session) => {
                 const user = session?.user ?? null;
-
-                if (user){
-                    get().setFromSession(user, session);
-                    await get().fechtRole().catch(() => {});
-                }else {
-                    get().logout().catch(() => {})
+                set({ user, session });
+                
+                if (user) {
+                    await get().fetchRole();
+                } else {
+                    set({ role: null, error: null });
                 }
-                set({ loading: false });
             },
-
+            
             //Setea el usuario y la sesion
             setFromSession: (user, session) => set({ user, session }),
 
@@ -34,26 +33,21 @@ export const useAuthStore = create(
                     password,
                 })
                 if (error){
+                    console.error("Error en el login:", error.message);
                     set({ loading: false, error: "Credenciales incorrectas" });
                     return;
                 }
 
-                set({ user: data.user, session: data.session})
-
-                await get().fetchRole();
+                // onAuthStateChange se encargará de actualizar el estado
                 set({ loading: false});
             },
 
             initializeAuth: async () =>{
+                set({ loading: true });
                 const { data: {session} } = await supabase.auth.getSession();
-                const user = session?.user ?? null;
-
-                if (user){
-                    get().setFromSession(user, session);
-                    await get().fechtRole().catch(() => {});
-                }else {
-                    get().logout().catch(() => {})
-                }
+                // No es necesario llamar a logout() si no hay sesión, 
+                // _handleSession(null) limpiará el estado.
+                await get()._handleSession(session);
                 set({ loading: false });
             },
 
@@ -64,6 +58,7 @@ export const useAuthStore = create(
 
                 const { data, error } = await supabase.rpc("get_user_role");
                 if (error) {
+                    console.error("Error al obtener el rol:", error.message);
                     set ({role: null, error: "No se pudo obtener el rol"});
                 }else{
                     set({ role: data ?? null});
@@ -96,15 +91,7 @@ export const useAuthStore = create(
 
 //Escucha los cambios de sesión y sincroniza el estado
 if (typeof window !== "undefined") {
-    supabase.auth.onAuthStateChange((_event, session) =>{
-        const user = session?.user ?? null;
-        const s = useAuthStore.getState();
-
-        if (user) {
-            s.setFromSession(user, session);
-            s.fetchRole().catch(() => {});
-        } else {
-            s.logout().catch(() => {});
-        }
+    supabase.auth.onAuthStateChange(async (_event, session) =>{
+        await useAuthStore.getState()._handleSession(session);
     });
 }
