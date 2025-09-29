@@ -39,7 +39,7 @@ const LoginForm = ({ onShowResetModal }) => {
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-                <label className="text-sm text-black">Correo electrónico</label>
+                <label className="text-sm text-bg-cyan-800">Correo electrónico</label>
                 <input 
                     type="email"
                     placeholder="Ingresa tu correo electrónico"
@@ -49,7 +49,7 @@ const LoginForm = ({ onShowResetModal }) => {
                 />
             </div>
             <div>
-                <label className="text-sm text-neutral-950">Contraseña</label>
+                <label className="text-sm bg-cyan-800">Contraseña</label>
                 <input
                     type="password"
                     placeholder="Ingresa tu contraseña"
