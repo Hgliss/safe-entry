@@ -39,49 +39,49 @@ const LoginForm = ({ onShowResetModal }) => {
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-                <label className="text-sm text-bg-cyan-800">Correo electrónico</label>
+                <label className="text-sm text-cyan-800">Correo electrónico</label>
                 <input 
                     type="email"
                     placeholder="Ingresa tu correo electrónico"
-                    className="w-full mt-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-teal-800"
+                    className="w-full mt-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-teal-800 bg-white"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)} 
                 />
             </div>
             <div>
-                <label className="text-sm bg-cyan-800">Contraseña</label>
+                <label className="text-sm text-cyan-800">Contraseña</label>
                 <input
                     type="password"
                     placeholder="Ingresa tu contraseña"
-                    className="w-full mt-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-teal-800"
+                    className="w-full mt-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-teal-800 bg-white"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)} 
-                 />
+                />
             </div>
-                 <button 
+                <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute inset-y-0 right-3 flex items-center text-gray-500"
                 >
                     {showPassword ? <EyeOff size={20} /> : <Eye size ={20} />}
-                 </button>
-                 <button
+                </button>
+                <button
                     type="submit"
-                    classname="w-full bg-green-70 text-white py-2 rounded-lg hover:bg-green-950 font-semibold transition disabled:opacity-60"
+                    className="w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-950 font-semibold transition disabled:opacity-60"
                     disabled={loading}
-                 >
+                >
                     {loading ? "Ingresando..." : "Ingresar"}
-                 </button>
-                 {message && (
+                </button>
+                {message && (
                     <p className="text-sm text-center mt-2 text-red-500">{message}</p>
-                 )}
-                 <button
+                )}
+                <button
                     type="button"
                     onClick={onShowResetModal}
                     className="text-sm text-center text-blue-700 hover:underline"
-                 >
+                >
                     ¿Olvidaste tu contraseña?
-                 </button>
+                </button>
         </form>
         
     );
