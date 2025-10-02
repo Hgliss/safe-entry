@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/public/LoginPage";
 import RoleRedirect from "./pages/public/RoleRedirect";
 import './App.css'
@@ -8,7 +8,9 @@ function App() {
     <Router>
       <Routes>
         {/* 🔹 Pagina de Login */}
-        <Route path="/" element={ <LoginPage /> } />
+        <Route path="/login" element={ <LoginPage /> } />
+        <Route path="/" element={ <Navigate to = "/login"/> } />
+        <Route path="/role-redirect" element={ <RoleRedirect /> } />
       </Routes>
     </Router>
   );
