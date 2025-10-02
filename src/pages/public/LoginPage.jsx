@@ -28,10 +28,10 @@ const LoginPage = () =>{
                     alt="Logo SafeEntry"
                     className="w-28 mx-auto mb-4"
                 />
-                <h2 className="text-2xl font-bold text-center text-shadow-cyan-800 mb-1">
+                <h2 className="text-2xl font-bold text-center text-cyan-800 mb-1">
                     Iniciar Sesión
                 </h2>
-                <p className="text-center text-gray-600 mb-6 text-sm">
+                <p className="text-center text-shadow-blue-950 mb-6 text-sm">
                     Ingresa tus credenciales para acceder al sistema
                 </p>
 
