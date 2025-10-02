@@ -50,14 +50,14 @@ const LoginForm = ({ onShowResetModal }) => {
             </div>
             <div>
                 <label className="text-sm text-cyan-800">Contraseña</label>
+                <div className="relative">
                 <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="Ingresa tu contraseña"
                     className="w-full mt-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-teal-800 bg-white"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)} 
                 />
-            </div>
                 <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
@@ -65,6 +65,9 @@ const LoginForm = ({ onShowResetModal }) => {
                 >
                     {showPassword ? <EyeOff size={20} /> : <Eye size ={20} />}
                 </button>
+            </div>
+            </div>
+                
                 <button
                     type="submit"
                     className="w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-950 font-semibold transition disabled:opacity-60"
