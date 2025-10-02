@@ -32,8 +32,11 @@ const LoginForm = ({ onShowResetModal }) => {
             return;
         }
 
+        await useAuthStore.getState().fetchRole();
+
         setMessage("Sesión iniciada con éxito.");
         navigate("/role-redirect");
+        
     };
 
     return (
