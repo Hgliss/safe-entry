@@ -11,9 +11,11 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* 🔹 Pagina de Login */}
+        {/* Pagina de Login */}
         <Route path="/login" element={ <LoginPage /> } />
         <Route path="/" element={ <Navigate to = "/login"/> } />
+
+        {/* Redirecciones de Roles */}
         <Route path="/role-redirect" element={ <RoleRedirect /> } />
         
         
