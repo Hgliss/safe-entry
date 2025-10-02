@@ -1,7 +1,11 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/public/LoginPage";
 import RoleRedirect from "./pages/public/RoleRedirect";
-import './App.css'
+
+
+import AdminLayout from "./layouts/AdminLayout";
+import Dashboard from "./pages/admin/Dashboard";
+
 
 function App() {
   return (
@@ -11,6 +15,15 @@ function App() {
         <Route path="/login" element={ <LoginPage /> } />
         <Route path="/" element={ <Navigate to = "/login"/> } />
         <Route path="/role-redirect" element={ <RoleRedirect /> } />
+        
+        
+        
+        {/* Admin con Layout fijo*/}
+        <Route path="/admin" element={ <AdminLayout /> }>
+            {/* Rutas hijas de Admin */}
+            <Route index element={<Navigate to="dashboard"/>}/>
+            <Route path="dashboard" element={ <Dashboard /> } />
+        </Route>
       </Routes>
     </Router>
   );
