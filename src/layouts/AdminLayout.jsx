@@ -19,7 +19,7 @@ export default function AdminLayout(){
                     <ShieldCheck className="h-5 w-5" /> SafeEntry Admin
                 </h1>
                 <nav className="flex flex-col gap-2">
-                    <NavItem to="admin/dashboard" icon={<ShieldCheck size={22} />} label="Inicio" />
+                    <NavItem to="dashboard" icon={<ShieldCheck size={22} />} label="Inicio" />
                     <NavItem to="admin/usuarios" icon={<Users size={22} />} label="Usuarios" />
                     <NavItem to="admin/padres" icon={<UserStar size={22} />} label="Padres" />
                     <NavItem to="admin/personal" icon={<Building2 size={22} />} label="Personal" />
