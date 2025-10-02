@@ -90,12 +90,12 @@ export const useAuthStore = create(
 
 
 // Escucha cambios de sesión
-//supabase.auth.onAuthStateChange(async (_event, session) => {
-  //const state = useAuthStore.getState();
-  //if (state.session?.access_token !== session?.access_token) {
-    //await state._handleSession(session);
-  //}
-//});
+supabase.auth.onAuthStateChange(async (_event, session) => {
+  const state = useAuthStore.getState();
+  if (state.session?.access_token !== session?.access_token) {
+    await state._handleSession(session);
+  }
+});
 
 // Ejecuta initializeAuth tras hidratar
 useAuthStore.persist.onFinishHydration(() => {
