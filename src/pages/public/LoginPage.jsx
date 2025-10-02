@@ -8,7 +8,7 @@ const LoginPage = () =>{
     return(
     <div className="min-h-screen flex font-sans">
       {/* LADO IZQUIERDO */}
-      <div className="hidden md:flex w-1/2 items-center justify-center bg-gradient-to-br from-[#B9D2E3] to-[#f5f5eb] p-10">
+      <div className="hidden md:flex w-1/2 items-center justify-center bg-gradient-to-br from-slate-300 to-stone-100 p-10">
         <div className="text-center text-cyan-800 max-w-sm">
           <h2 className="text-5xl font-bold mb-2 text-blue-900">SafeEntry</h2>
           <p className="text-lg text-blue-900">
@@ -21,14 +21,14 @@ const LoginPage = () =>{
 
 
         {/* LADO DERECHO */}
-        <div className="w-full md:w-1/2 flex items-center justify-center bg-[#f5f5eb]">
+        <div className="w-full md:w-1/2 flex items-center justify-center bg-stone-100">
             <div className="max-w-md w-full p-10">
                 <img
                     src="/pwa-192x192.png"
                     alt="Logo SafeEntry"
                     className="w-28 mx-auto mb-4"
                 />
-                <h2 className="text-2xl font-bold text-center text-[#17637A] mb-1">
+                <h2 className="text-2xl font-bold text-center text-shadow-cyan-800 mb-1">
                     Iniciar Sesión
                 </h2>
                 <p className="text-center text-gray-600 mb-6 text-sm">
