@@ -5,6 +5,7 @@ import RoleRedirect from "./pages/public/RoleRedirect";
 
 import AdminLayout from "./layouts/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
+import Usuarios from "./pages/admin/Usuarios";
 
 
 function App() {
@@ -25,6 +26,8 @@ function App() {
             {/* Rutas hijas de Admin */}
             <Route index element={<Navigate to="dashboard"/>}/>
             <Route path="dashboard" element={ <Dashboard /> } />
+            <Route path="usuarios" element={ <Usuarios /> } />
+
         </Route>
       </Routes>
     </Router>
