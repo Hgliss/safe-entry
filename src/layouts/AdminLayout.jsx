@@ -20,7 +20,7 @@ export default function AdminLayout(){
                 </h1>
                 <nav className="flex flex-col gap-2">
                     <NavItem to="dashboard" icon={<ShieldCheck size={22} />} label="Inicio" />
-                    <NavItem to="admin/usuarios" icon={<Users size={22} />} label="Usuarios" />
+                    <NavItem to="usuarios" icon={<Users size={22} />} label="Usuarios" />
                     <NavItem to="admin/padres" icon={<UserStar size={22} />} label="Padres" />
                     <NavItem to="admin/personal" icon={<Building2 size={22} />} label="Personal" />
                     <NavItem to="admin/ninos" icon={<UserRoundCheck size={22} />} label="Niños" />
