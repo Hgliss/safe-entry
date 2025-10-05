@@ -6,7 +6,8 @@ import RoleRedirect from "./pages/public/RoleRedirect";
 import AdminLayout from "./layouts/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import Usuarios from "./pages/admin/Usuarios";
-import Padres from "./pages/admin/Padres"
+import Padres from "./pages/admin/Padres";
+
 
 
 function App() {
@@ -29,6 +30,8 @@ function App() {
             <Route path="dashboard" element={ <Dashboard /> } />
             <Route path="usuarios" element={ <Usuarios /> } />
             <Route path="padres" element={ <Padres /> } />
+
+      
 
         </Route>
       </Routes>
