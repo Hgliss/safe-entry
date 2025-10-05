@@ -19,8 +19,6 @@ export default function AdminLayout(){
 
     const handleNavClick = () => setIsOpen(false);
     
-
-
     return(
         <div className="h-screen w-screen flex flex-col md:flex-row font-sans bg-gray-50">
             {/* Navbar */}
@@ -47,7 +45,7 @@ export default function AdminLayout(){
                 <nav className="flex flex-col gap-2">
                     <NavItem to="dashboard" icon={<ShieldCheck size={22} />} label="Inicio" onClick={handleNavClick} active={location.pathname === "dashboard"} />
                     <NavItem to="usuarios" icon={<Users size={22} />} label="Usuarios" onClick={handleNavClick} active={location.pathname === "usuarios"} />
-                    <NavItem to="/admin/padres" icon={<UserStar size={22} />} label="Padres" onClick={handleNavClick} active={location.pathname === "/admin/padres"} />
+                    <NavItem to="padres" icon={<UserStar size={22} />} label="Padres" onClick={handleNavClick} active={location.pathname === "padres"} />
                     <NavItem to="/admin/personal" icon={<Building2 size={22} />} label="Personal" onClick={handleNavClick} active={location.pathname === "/admin/personal"} />
                     <NavItem to="/admin/ninos" icon={<UserRoundCheck size={22} />} label="Niños" onClick={handleNavClick} active={location.pathname === "/admin/ninos"} />
                     <NavItem to="/admin/historial" icon={<History size={22} />} label="Historial" onClick={handleNavClick} active={location.pathname === "/admin/historial"} />
