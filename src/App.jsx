@@ -1,12 +1,14 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/public/LoginPage";
 import RoleRedirect from "./pages/public/RoleRedirect";
+import SetPassword from "./components/auth/SetPassword";
 
 
 import AdminLayout from "./layouts/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import Usuarios from "./pages/admin/Usuarios";
 import Padres from "./pages/admin/Padres";
+import Personal from "./pages/admin/Personal";
 
 
 
@@ -17,6 +19,7 @@ function App() {
         {/* Pagina de Login */}
         <Route path="/login" element={ <LoginPage /> } />
         <Route path="/" element={ <Navigate to = "/login"/> } />
+        <Route path="/set-password" element={ <SetPassword /> } />
 
         {/* Redirecciones de Roles */}
         <Route path="/role-redirect" element={ <RoleRedirect /> } />
@@ -30,6 +33,7 @@ function App() {
             <Route path="dashboard" element={ <Dashboard /> } />
             <Route path="usuarios" element={ <Usuarios /> } />
             <Route path="padres" element={ <Padres /> } />
+            <Route path="personal" element={ <Personal /> } />
 
       
 
