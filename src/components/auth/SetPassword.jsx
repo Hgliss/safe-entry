@@ -4,22 +4,22 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../../api/supabaseClient";
 
 export default function SetPassword() {
-  const [params] = useSearchParams();
-  const nav = useNavigate();
+    const [params] = useSearchParams();
+    const nav = useNavigate();
 
-  const [ready, setReady] = useState(false);
-  const [p1, setP1] = useState("");
-  const [p2, setP2] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
-  const [ok, setOk] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      try {
+    const [ready, setReady] = useState(false);
+    const [p1, setP1] = useState("");
+    const [p2, setP2] = useState("");
+    const [saving, setSaving] = useState(false);
+    const [err, setErr] = useState("");
+    const [ok, setOk] = useState(false);
+    
+    useEffect(() => {
+        (async () => {
+            try {
         // 1) Intercambia ?code= (PKCE, magic link moderno)
         try {
-          await supabase.auth.exchangeCodeForSession(window.location.href);
+            await supabase.auth.exchangeCodeForSession(window.location.href);
         } catch {
           /* no-op si no hay code */
         }
@@ -29,7 +29,7 @@ export default function SetPassword() {
         const at = hash.get("access_token");
         const rt = hash.get("refresh_token");
         if (at && rt) {
-          await supabase.auth.setSession({ access_token: at, refresh_token: rt });
+            await supabase.auth.setSession({ access_token: at, refresh_token: rt });
         }
 
         // 3) Esperar sesión
