@@ -6,7 +6,7 @@ import RoleRedirect from "./pages/public/RoleRedirect";
 import AdminLayout from "./layouts/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import Usuarios from "./pages/admin/Usuarios";
-import Padres from "./pages/admin/Padres";
+import Padres from "./pages/admin/Padres"
 
 
 function App() {
