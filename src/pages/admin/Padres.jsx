@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, use } from 'react';
 import { supabase } from "../../api/supabaseClient";
-import { useAuthStore } from "../../store/useAuthStore"
+
 import {
   Users,
   Plus,
@@ -18,6 +18,7 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+
 
 //Constantes
 const TABLE = "person";
@@ -180,14 +181,13 @@ async function onDelete(p) {
         });
       }
 
-      const redirectTo = `${
-        import.meta.env.VITE_SITE_URL
-      }/auth/callback?person_id=${inviteTarget.id_person}`;
+      const base = String(import.meta.env.VITE_SITE_URL || window.location.origin).replace(/\/+$/, ""); 
+      const redirectTo = `${base}/set-password?flow=accept&person_id=${inviteTarget.id_person}`;
 
-      const { error } = await supabase.auth.signInWithOtp({
-        email: inviteEmail.trim().toLowerCase(),
-        options: { emailRedirectTo: redirectTo },
-      });
+      const { error: otpErr } = await supabase.auth.signInWithOtp({
+      email: inviteEmail.trim().toLowerCase(),
+      options: { emailRedirectTo: redirectTo },
+    });
 
       if (error) throw error;
       alert("📩 Invitación enviada correctamente.");
