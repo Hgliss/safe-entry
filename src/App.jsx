@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import LoginPage from "./pages/public/LoginPage";
 import RoleRedirect from "./pages/public/RoleRedirect";
 import SetPassword from "./components/auth/SetPassword";
+import ResetPassword from "./components/auth/ResetPasswordModal";
 
 
 import AdminLayout from "./layouts/AdminLayout";
@@ -23,6 +24,7 @@ function App() {
         <Route path="/login" element={ <LoginPage /> } />
         <Route path="/" element={ <Navigate to = "/login"/> } />
         <Route path="/set-password" element={ <SetPassword /> } />
+        <Route path="/reset" element={ <ResetPassword /> } />
 
         {/* Redirecciones de Roles */}
         <Route path="/role-redirect" element={ <RoleRedirect /> } />
