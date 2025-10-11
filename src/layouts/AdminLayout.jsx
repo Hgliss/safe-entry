@@ -47,7 +47,7 @@ export default function AdminLayout(){
                     <NavItem to="usuarios" icon={<Users size={22} />} label="Usuarios" onClick={handleNavClick} active={location.pathname === "usuarios"} />
                     <NavItem to="padres" icon={<UserStar size={22} />} label="Padres" onClick={handleNavClick} active={location.pathname === "padres"} />
                     <NavItem to="personal" icon={<Building2 size={22} />} label="Personal" onClick={handleNavClick} active={location.pathname === "personal"} />
-                    <NavItem to="/admin/ninos" icon={<UserRoundCheck size={22} />} label="Niños" onClick={handleNavClick} active={location.pathname === "/admin/ninos"} />
+                    <NavItem to="ninos" icon={<UserRoundCheck size={22} />} label="Niños" onClick={handleNavClick} active={location.pathname === "ninos"} />
                     <NavItem to="/admin/historial" icon={<History size={22} />} label="Historial" onClick={handleNavClick} active={location.pathname === "/admin/historial"} />
                     <NavItem to="/admin/reporteria" icon={<BarChart3 size={22} />} label="Reportería" onClick={handleNavClick} active={location.pathname === "/admin/reporteria"} />
                     <NavItem to="/admin/scanner" icon={<QrCode size={22} />} label="Escáner QR" onClick={handleNavClick} active={location.pathname === "/admin/scanner"} />
