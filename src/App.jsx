@@ -9,6 +9,9 @@ import Dashboard from "./pages/admin/Dashboard";
 import Usuarios from "./pages/admin/Usuarios";
 import Padres from "./pages/admin/Padres";
 import Personal from "./pages/admin/Personal";
+import Niños from "./pages/admin/Ninos";
+import Atutor from "./pages/admin/Asignar_Tutores";
+
 
 
 
@@ -34,6 +37,9 @@ function App() {
             <Route path="usuarios" element={ <Usuarios /> } />
             <Route path="padres" element={ <Padres /> } />
             <Route path="personal" element={ <Personal /> } />
+            <Route path="ninos" element={ <Niños /> } />
+            <Route path="atutor/:id" element={ <Atutor /> } />
+            
 
       
 
