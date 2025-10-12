@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import LoginPage from "./pages/public/LoginPage";
 import RoleRedirect from "./pages/public/RoleRedirect";
 import SetPassword from "./components/auth/SetPassword";
-import ResetPassword from "./components/auth/Reset";
+import ResetPassword from "./components/auth/ResetPasswordModal";
 
 
 import AdminLayout from "./layouts/AdminLayout";
