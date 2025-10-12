@@ -12,7 +12,7 @@ import Padres from "./pages/admin/Padres";
 import Personal from "./pages/admin/Personal";
 import Niños from "./pages/admin/Ninos";
 import Atutor from "./pages/admin/Asignar_Tutores";
-
+import Scanner from "./pages/admin/ScannerQR";
 
 
 
@@ -41,6 +41,7 @@ function App() {
             <Route path="personal" element={ <Personal /> } />
             <Route path="ninos" element={ <Niños /> } />
             <Route path="atutor/:id" element={ <Atutor /> } />
+            <Route path="scanner" element={ <Scanner /> } />
             
 
       
