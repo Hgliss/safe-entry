@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 export default function ScannerQR() {
-  const [status, setStatus] = useState("idle"); // idle | loading | success | error
+  const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
   const [lastScan, setLastScan] = useState(null);
   const [direction, setDirection] = useState("in"); // in | out
@@ -23,7 +23,7 @@ export default function ScannerQR() {
   const scannerRef = useRef(null);
   const isRunningRef = useRef(false);
 
-  // ✅ Registrar escaneo
+  // 📸 Función para registrar el escaneo
   const handleScan = async (data) => {
     if (!data || status === "loading") return;
     setStatus("loading");
@@ -62,7 +62,7 @@ export default function ScannerQR() {
     }
   };
 
-  // ✅ Iniciar escáner con permisos reforzados
+  // 🚀 Inicializar escáner
   const startScanner = async (deviceId) => {
     const scanner = new Html5Qrcode(qrRegionId);
     scannerRef.current = scanner;
@@ -97,7 +97,7 @@ export default function ScannerQR() {
     }
   };
 
-  // ✅ Listar cámaras al montar componente
+  // 🎥 Listar cámaras y arrancar la predeterminada
   useEffect(() => {
     Html5Qrcode.getCameras()
       .then((devices) => {
@@ -113,6 +113,7 @@ export default function ScannerQR() {
         setMessage("No se detectaron cámaras disponibles.");
       });
 
+    // 🧹 Limpieza
     return () => {
       if (isRunningRef.current && scannerRef.current) {
         scannerRef.current
@@ -125,7 +126,7 @@ export default function ScannerQR() {
     };
   }, []);
 
-  // ✅ Cambiar cámara
+  // 🔁 Cambiar cámara
   const switchCamera = async () => {
     if (cameras.length < 2) return;
     const currentIndex = cameras.findIndex((c) => c.id === cameraId);
@@ -135,29 +136,55 @@ export default function ScannerQR() {
     if (isRunningRef.current && scannerRef.current) {
       await scannerRef.current.stop();
       isRunningRef.current = false;
-      document.getElementById(qrRegionId).innerHTML = ""; // limpiar DOM
+      document.getElementById(qrRegionId).innerHTML = "";
     }
     setCameraId(nextCam);
     startScanner(nextCam);
   };
 
-  // ✅ Alternar dirección Entrada / Salida
+  // ↔️ Alternar Entrada / Salida
   const toggleDirection = () => {
     setDirection((prev) => (prev === "in" ? "out" : "in"));
   };
 
+  // 📱 Ajuste de orientación dinámica
+  useEffect(() => {
+    const handleResize = () => {
+      const el = document.getElementById(qrRegionId);
+      if (!el) return;
+      if (window.innerHeight > window.innerWidth) {
+        // vertical
+        el.style.width = "80vw";
+        el.style.height = "60vw";
+      } else {
+        // horizontal
+        el.style.width = "70vw";
+        el.style.height = "60vh";
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#F5F5EB] text-[#17637A] p-6">
-      <h1 className="text-3xl font-bold mb-6 text-center">Código QR</h1>
+      <h1 className="text-3xl font-bold mb-6 text-center">Escáner de Código QR</h1>
 
-      {/* Contenedor del escáner */}
+      {/* 📸 Contenedor del escáner */}
       <div className="relative flex flex-col items-center">
         <div
           id={qrRegionId}
-          className="w-72 h-72 border-4 border-[#17637A] rounded-2xl shadow-lg bg-white"
+          className="border-4 border-[#17637A] rounded-2xl shadow-lg bg-white overflow-hidden"
+          style={{
+            maxWidth: "400px",
+            maxHeight: "400px",
+            objectFit: "cover",
+            borderRadius: "1rem",
+          }}
         ></div>
 
-        {/* Botones fijos debajo */}
+        {/* 🎛️ Botones fijos debajo */}
         <div className="flex gap-3 mt-4">
           <button
             onClick={switchCamera}
@@ -165,7 +192,7 @@ export default function ScannerQR() {
             className="flex items-center gap-2 bg-[#17637A] hover:bg-[#145468] text-white font-semibold px-4 py-2 rounded-xl transition"
           >
             <Camera size={18} />
-            Cámara
+            Cambiar cámara
           </button>
 
           <button
@@ -182,7 +209,7 @@ export default function ScannerQR() {
         </div>
       </div>
 
-      {/* Estado: cargando */}
+      {/* ⏳ Estado: cargando */}
       {status === "loading" && (
         <div className="flex flex-col items-center mt-6 text-[#17637A]">
           <Loader2 className="animate-spin w-10 h-10 mb-2" />
@@ -190,7 +217,7 @@ export default function ScannerQR() {
         </div>
       )}
 
-      {/* Estado: éxito */}
+      {/* ✅ Estado: éxito */}
       {status === "success" && (
         <div className="flex flex-col items-center mt-6 text-green-600 animate-pulse">
           <CheckCircle className="w-10 h-10 mb-2" />
@@ -198,7 +225,7 @@ export default function ScannerQR() {
         </div>
       )}
 
-      {/* Estado: error */}
+      {/* ❌ Estado: error */}
       {status === "error" && (
         <div className="flex flex-col items-center mt-6 text-red-600 animate-pulse">
           <XCircle className="w-10 h-10 mb-2" />
@@ -206,7 +233,7 @@ export default function ScannerQR() {
         </div>
       )}
 
-      {/* Info de la última lectura */}
+      {/* 🕓 Info del último escaneo */}
       {lastScan && (
         <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-3 w-72 text-sm text-gray-700">
           <p>
