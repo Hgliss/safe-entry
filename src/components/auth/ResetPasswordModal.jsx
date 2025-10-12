@@ -13,7 +13,7 @@ const ResetPasswordModal = ({ onClose }) =>{
         }
 
         const { error } = await supabase.auth.resetPasswordForEmail(emailReset, {
-            redirectTo: "https://safe-entry-pwa.vercel.app/set-password?flow=reset",
+            redirectTo: "https://safe-entry-pwa.vercel.app/set-password",
         });
 
         if (error) {
