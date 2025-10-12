@@ -63,16 +63,31 @@ export const useAuthStore = create(
       },
 
       // Logout
-      logout: async () => {
-        await supabase.auth.signOut();
-        set({
-          user: null,
-          session: null,
-          role: null,
-          error: null,
-          loading: false,
-        });
-      },
+      logoutUser: async () => {
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  } catch (error) {
+    console.error("Error al cerrar sesión:", error);
+  } finally {
+    set({
+      user: null,
+      session: null,
+      role: null,
+      error: null,
+      loading: false,
+    });
+
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {
+      console.error("Error limpiando almacenamiento:", e);
+    }
+
+    window.location.replace("/login");
+  }
+},
     }),
     {
       name: "safeentry-auth",

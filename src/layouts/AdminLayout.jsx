@@ -13,31 +13,20 @@ import {
     X,
     LogOut,
 } from "lucide-react";
+import { useAuthStore } from "../store/useAuthStore";
 
 export default function AdminLayout(){
     const [isOpen, setIsOpen] = useState(false);
     const location = useLocation();
+    const logoutUser = useAuthStore((state) => state.logoutUser);
 
     const handleNavClick = () => setIsOpen(false);
 
     const handleLogout = async () => {
-        try {
-            const { error } = await supabase.auth.signOut();
-            if (error) throw error;
-        } catch (e) {
-            console.error("Error al cerrar sesión:", e);
-        } finally {
-            try {
-                sessionStorage.clear();
-            } catch {}
-            window.location.replace("/login");
-        }
+        logoutUser();
     };
     
-    const isActive = (path) => location.pathname.startsWith(path);
     
-
-
     
     return(
         <div className="h-screen w-screen flex flex-col md:flex-row font-sans bg-gray-50">
