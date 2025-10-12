@@ -15,7 +15,7 @@ export default function ScannerQR() {
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
   const [lastScan, setLastScan] = useState(null);
-  const [direction, setDirection] = useState("in"); // in | out
+  const [direction, setDirection] = useState("in");
   const [cameraId, setCameraId] = useState(null);
   const [cameras, setCameras] = useState([]);
   const user = useAuthStore((state) => state.user);
@@ -23,7 +23,6 @@ export default function ScannerQR() {
   const scannerRef = useRef(null);
   const isRunningRef = useRef(false);
 
-  // 📸 Función para registrar el escaneo
   const handleScan = async (data) => {
     if (!data || status === "loading") return;
     setStatus("loading");
@@ -62,7 +61,6 @@ export default function ScannerQR() {
     }
   };
 
-  // 🚀 Inicializar escáner
   const startScanner = async (deviceId) => {
     const scanner = new Html5Qrcode(qrRegionId);
     scannerRef.current = scanner;
@@ -87,6 +85,17 @@ export default function ScannerQR() {
           () => {}
         );
         isRunningRef.current = true;
+
+        // 🔧 🔥 Aquí forzamos el video a adaptarse correctamente
+        setTimeout(() => {
+          const video = document.querySelector(`#${qrRegionId} video`);
+          if (video) {
+            video.style.width = "100%";
+            video.style.height = "100%";
+            video.style.objectFit = "cover";
+            video.style.borderRadius = "1rem";
+          }
+        }, 500);
       }
     } catch (err) {
       console.error("Error al iniciar cámara:", err);
@@ -97,7 +106,6 @@ export default function ScannerQR() {
     }
   };
 
-  // 🎥 Listar cámaras y arrancar la predeterminada
   useEffect(() => {
     Html5Qrcode.getCameras()
       .then((devices) => {
@@ -113,7 +121,6 @@ export default function ScannerQR() {
         setMessage("No se detectaron cámaras disponibles.");
       });
 
-    // 🧹 Limpieza
     return () => {
       if (isRunningRef.current && scannerRef.current) {
         scannerRef.current
@@ -126,7 +133,6 @@ export default function ScannerQR() {
     };
   }, []);
 
-  // 🔁 Cambiar cámara
   const switchCamera = async () => {
     if (cameras.length < 2) return;
     const currentIndex = cameras.findIndex((c) => c.id === cameraId);
@@ -142,12 +148,11 @@ export default function ScannerQR() {
     startScanner(nextCam);
   };
 
-  // ↔️ Alternar Entrada / Salida
   const toggleDirection = () => {
     setDirection((prev) => (prev === "in" ? "out" : "in"));
   };
 
-  // 📱 Ajuste de orientación dinámica
+  // 🔁 Ajuste dinámico según orientación
   useEffect(() => {
     const handleResize = () => {
       const el = document.getElementById(qrRegionId);
@@ -155,10 +160,10 @@ export default function ScannerQR() {
       if (window.innerHeight > window.innerWidth) {
         // vertical
         el.style.width = "80vw";
-        el.style.height = "60vw";
+        el.style.height = "65vw";
       } else {
         // horizontal
-        el.style.width = "70vw";
+        el.style.width = "60vw";
         el.style.height = "60vh";
       }
     };
@@ -175,7 +180,7 @@ export default function ScannerQR() {
       <div className="relative flex flex-col items-center">
         <div
           id={qrRegionId}
-          className="border-4 border-[#17637A] rounded-2xl shadow-lg bg-white overflow-hidden"
+          className="border-4 border-[#17637A] rounded-2xl shadow-lg bg-white overflow-hidden flex items-center justify-center"
           style={{
             maxWidth: "400px",
             maxHeight: "400px",
@@ -192,7 +197,7 @@ export default function ScannerQR() {
             className="flex items-center gap-2 bg-[#17637A] hover:bg-[#145468] text-white font-semibold px-4 py-2 rounded-xl transition"
           >
             <Camera size={18} />
-            Cambiar cámara
+            Cámara
           </button>
 
           <button
