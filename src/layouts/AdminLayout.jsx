@@ -21,26 +21,20 @@ export default function AdminLayout(){
     const handleNavClick = () => setIsOpen(false);
 
     const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-    } catch (e) {
-      console.error("Error al cerrar sesión:", e);
-      // Si algo falla en Supabase, igual forzamos salida del lado cliente
-    } finally {
-      try {
-        sessionStorage.clear();
-        // Si tienes una clave propia en localStorage, limpia aquí:
-        // localStorage.removeItem("safeentry-auth");
-      } catch {}
-      // Usamos replace para que no puedan volver con el botón atrás
-      window.location.replace("/login");
-      // Alternativa con React Router (si tu guard no bloquea):
-      // navigate("/login", { replace: true });
-    }
-  };
-
-  const isActive = (path) => location.pathname.startsWith(path);
+        try {
+            const { error } = await supabase.auth.signOut();
+            if (error) throw error;
+        } catch (e) {
+            console.error("Error al cerrar sesión:", e);
+        } finally {
+            try {
+                sessionStorage.clear();
+            } catch {}
+            window.location.replace("/login");
+        }
+    };
+    
+    const isActive = (path) => location.pathname.startsWith(path);
     
 
 
