@@ -7,7 +7,6 @@ import {
   XCircle,
   Loader2,
   Camera,
-  RefreshCw,
   LogIn,
   LogOut,
 } from "lucide-react";
@@ -24,7 +23,7 @@ export default function ScannerQR() {
   const scannerRef = useRef(null);
   const isRunningRef = useRef(false);
 
-  // 🧠 Escanear y registrar
+  // ✅ Registrar escaneo
   const handleScan = async (data) => {
     if (!data || status === "loading") return;
     setStatus("loading");
@@ -48,7 +47,6 @@ export default function ScannerQR() {
         } de ${result.child_name || "el niño/a"} correctamente.`
       );
 
-      // Feedback visual/vibración
       if (navigator.vibrate) navigator.vibrate(200);
 
       setTimeout(() => {
@@ -64,15 +62,24 @@ export default function ScannerQR() {
     }
   };
 
-  // 🎥 Inicializar cámara y lista de dispositivos
+  // ✅ Iniciar escáner con permisos reforzados
   const startScanner = async (deviceId) => {
     const scanner = new Html5Qrcode(qrRegionId);
     scannerRef.current = scanner;
 
+    const constraints = {
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+      audio: false,
+    };
+
     try {
       if (!isRunningRef.current) {
         await scanner.start(
-          deviceId ? { deviceId } : { facingMode: "environment" },
+          deviceId ? { deviceId } : constraints,
           { fps: 10, qrbox: { width: 250, height: 250 } },
           async (decodedText) => {
             await handleScan(decodedText);
@@ -90,7 +97,7 @@ export default function ScannerQR() {
     }
   };
 
-  // 🧩 Montar componente y listar cámaras
+  // ✅ Listar cámaras al montar componente
   useEffect(() => {
     Html5Qrcode.getCameras()
       .then((devices) => {
@@ -118,7 +125,7 @@ export default function ScannerQR() {
     };
   }, []);
 
-  // 🔄 Cambiar cámara activa
+  // ✅ Cambiar cámara
   const switchCamera = async () => {
     if (cameras.length < 2) return;
     const currentIndex = cameras.findIndex((c) => c.id === cameraId);
@@ -134,45 +141,45 @@ export default function ScannerQR() {
     startScanner(nextCam);
   };
 
-  // 🔁 Cambiar dirección
+  // ✅ Alternar dirección Entrada / Salida
   const toggleDirection = () => {
     setDirection((prev) => (prev === "in" ? "out" : "in"));
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#F5F5EB] text-[#17637A] p-6">
-      <h1 className="text-3xl font-bold mb-6 text-center">
-        Escáner de Código QR
-      </h1>
+      <h1 className="text-3xl font-bold mb-6 text-center">Código QR</h1>
 
       {/* Contenedor del escáner */}
-      <div
-        id={qrRegionId}
-        className="w-72 h-72 border-4 border-[#17637A] rounded-2xl shadow-lg bg-white"
-      ></div>
+      <div className="relative flex flex-col items-center">
+        <div
+          id={qrRegionId}
+          className="w-72 h-72 border-4 border-[#17637A] rounded-2xl shadow-lg bg-white"
+        ></div>
 
-      {/* Botones de control */}
-      <div className="flex gap-4 mt-6">
-        <button
-          onClick={switchCamera}
-          disabled={cameras.length < 2}
-          className="flex items-center gap-2 bg-[#17637A] hover:bg-[#145468] text-white font-semibold px-4 py-2 rounded-xl transition"
-        >
-          <Camera size={18} />
-          Cambiar cámara
-        </button>
+        {/* Botones fijos debajo */}
+        <div className="flex gap-3 mt-4">
+          <button
+            onClick={switchCamera}
+            disabled={cameras.length < 2}
+            className="flex items-center gap-2 bg-[#17637A] hover:bg-[#145468] text-white font-semibold px-4 py-2 rounded-xl transition"
+          >
+            <Camera size={18} />
+            Cámara
+          </button>
 
-        <button
-          onClick={toggleDirection}
-          className={`flex items-center gap-2 font-semibold px-4 py-2 rounded-xl transition ${
-            direction === "in"
-              ? "bg-green-600 hover:bg-green-700 text-white"
-              : "bg-red-600 hover:bg-red-700 text-white"
-          }`}
-        >
-          {direction === "in" ? <LogIn size={18} /> : <LogOut size={18} />}
-          {direction === "in" ? "Entrada" : "Salida"}
-        </button>
+          <button
+            onClick={toggleDirection}
+            className={`flex items-center gap-2 font-semibold px-4 py-2 rounded-xl transition ${
+              direction === "in"
+                ? "bg-green-600 hover:bg-green-700 text-white"
+                : "bg-red-600 hover:bg-red-700 text-white"
+            }`}
+          >
+            {direction === "in" ? <LogIn size={18} /> : <LogOut size={18} />}
+            {direction === "in" ? "Entrada" : "Salida"}
+          </button>
+        </div>
       </div>
 
       {/* Estado: cargando */}
