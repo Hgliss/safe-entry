@@ -11,6 +11,7 @@ import {
     QrCode,
     Menu,
     X,
+    LogOut,
 } from "lucide-react";
 
 export default function AdminLayout(){
@@ -18,6 +19,31 @@ export default function AdminLayout(){
     const location = useLocation();
 
     const handleNavClick = () => setIsOpen(false);
+
+    const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (e) {
+      console.error("Error al cerrar sesión:", e);
+      // Si algo falla en Supabase, igual forzamos salida del lado cliente
+    } finally {
+      try {
+        sessionStorage.clear();
+        // Si tienes una clave propia en localStorage, limpia aquí:
+        // localStorage.removeItem("safeentry-auth");
+      } catch {}
+      // Usamos replace para que no puedan volver con el botón atrás
+      window.location.replace("/login");
+      // Alternativa con React Router (si tu guard no bloquea):
+      // navigate("/login", { replace: true });
+    }
+  };
+
+  const isActive = (path) => location.pathname.startsWith(path);
+    
+
+
     
     return(
         <div className="h-screen w-screen flex flex-col md:flex-row font-sans bg-gray-50">
@@ -38,9 +64,22 @@ export default function AdminLayout(){
                 className={`fixed md:static z-40 top-0 left-0 h-full bg-blue-900 text-white w-64 flex flex-col p-6 transform transition-transform duration-300 ease-in-out
                 ${isOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
             >
+                <div className="flex flex-col gap-3 mb-10">
                 <h1 className="text-xl font-bold mb-10 hidden md:flex items-center gap-2">
                     <ShieldCheck className="h-5 w-5" /> SafeEntry Admin
                 </h1>
+
+                <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 bg-white/10 hover:bg-white/20 transition p-2 rounded-md text-sm font-medium"
+                >
+                    <LogOut size={18}/>
+                    <span>Cerrar sesión</span>
+                </button>
+                </div>
+
+
                 
                 <nav className="flex flex-col gap-2">
                     <NavItem to="dashboard" icon={<ShieldCheck size={22} />} label="Inicio" onClick={handleNavClick} active={location.pathname === "dashboard"} />
