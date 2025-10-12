@@ -23,6 +23,7 @@ export default function ScannerQR() {
   const scannerRef = useRef(null);
   const isRunningRef = useRef(false);
 
+  // ✅ Registrar escaneo
   const handleScan = async (data) => {
     if (!data || status === "loading") return;
     setStatus("loading");
@@ -61,6 +62,7 @@ export default function ScannerQR() {
     }
   };
 
+  // ✅ Iniciar cámara
   const startScanner = async (deviceId) => {
     const scanner = new Html5Qrcode(qrRegionId);
     scannerRef.current = scanner;
@@ -68,8 +70,8 @@ export default function ScannerQR() {
     const constraints = {
       video: {
         facingMode: { ideal: "environment" },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
       },
       audio: false,
     };
@@ -78,7 +80,7 @@ export default function ScannerQR() {
       if (!isRunningRef.current) {
         await scanner.start(
           deviceId ? { deviceId } : constraints,
-          { fps: 10, qrbox: { width: 250, height: 250 } },
+          { fps: 10, qrbox: { width: 320, height: 320 } }, // 📦 cuadro más grande
           async (decodedText) => {
             await handleScan(decodedText);
           },
@@ -86,7 +88,7 @@ export default function ScannerQR() {
         );
         isRunningRef.current = true;
 
-        // 🔧 🔥 Aquí forzamos el video a adaptarse correctamente
+        // Asegurar que el video encaje correctamente
         setTimeout(() => {
           const video = document.querySelector(`#${qrRegionId} video`);
           if (video) {
@@ -95,7 +97,7 @@ export default function ScannerQR() {
             video.style.objectFit = "cover";
             video.style.borderRadius = "1rem";
           }
-        }, 500);
+        }, 600);
       }
     } catch (err) {
       console.error("Error al iniciar cámara:", err);
@@ -106,6 +108,7 @@ export default function ScannerQR() {
     }
   };
 
+  // ✅ Obtener cámaras disponibles
   useEffect(() => {
     Html5Qrcode.getCameras()
       .then((devices) => {
@@ -133,6 +136,7 @@ export default function ScannerQR() {
     };
   }, []);
 
+  // 🔁 Cambiar cámara
   const switchCamera = async () => {
     if (cameras.length < 2) return;
     const currentIndex = cameras.findIndex((c) => c.id === cameraId);
@@ -148,22 +152,22 @@ export default function ScannerQR() {
     startScanner(nextCam);
   };
 
+  // ↔️ Alternar dirección
   const toggleDirection = () => {
     setDirection((prev) => (prev === "in" ? "out" : "in"));
   };
 
-  // 🔁 Ajuste dinámico según orientación
+  // 📱 Ajustar el tamaño del escáner según orientación
   useEffect(() => {
     const handleResize = () => {
       const el = document.getElementById(qrRegionId);
       if (!el) return;
+
       if (window.innerHeight > window.innerWidth) {
-        // vertical
-        el.style.width = "80vw";
-        el.style.height = "65vw";
+        el.style.width = "90vw"; // 📏 más grande
+        el.style.height = "70vw";
       } else {
-        // horizontal
-        el.style.width = "60vw";
+        el.style.width = "70vw";
         el.style.height = "60vh";
       }
     };
@@ -173,31 +177,32 @@ export default function ScannerQR() {
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-[#F5F5EB] text-[#17637A] p-6">
-      <h1 className="text-3xl font-bold mb-6 text-center">Escáner de Código QR</h1>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[#F5F5EB] text-[#17637A] p-4">
+      <h1 className="text-3xl font-bold mb-6 text-center">
+        Escáner de Código QR
+      </h1>
 
       {/* 📸 Contenedor del escáner */}
       <div className="relative flex flex-col items-center">
         <div
           id={qrRegionId}
-          className="border-4 border-[#17637A] rounded-2xl shadow-lg bg-white overflow-hidden flex items-center justify-center"
+          className="border-4 border-[#17637A] rounded-2xl shadow-lg bg-black overflow-hidden flex items-center justify-center"
           style={{
-            maxWidth: "400px",
-            maxHeight: "400px",
-            objectFit: "cover",
+            maxWidth: "500px",
+            maxHeight: "500px",
             borderRadius: "1rem",
           }}
         ></div>
 
         {/* 🎛️ Botones fijos debajo */}
-        <div className="flex gap-3 mt-4">
+        <div className="flex gap-3 mt-6">
           <button
             onClick={switchCamera}
             disabled={cameras.length < 2}
             className="flex items-center gap-2 bg-[#17637A] hover:bg-[#145468] text-white font-semibold px-4 py-2 rounded-xl transition"
           >
             <Camera size={18} />
-            Cámara
+            Cambiar cámara
           </button>
 
           <button
@@ -214,7 +219,7 @@ export default function ScannerQR() {
         </div>
       </div>
 
-      {/* ⏳ Estado: cargando */}
+      {/* 🔄 Estado de carga / éxito / error */}
       {status === "loading" && (
         <div className="flex flex-col items-center mt-6 text-[#17637A]">
           <Loader2 className="animate-spin w-10 h-10 mb-2" />
@@ -222,7 +227,6 @@ export default function ScannerQR() {
         </div>
       )}
 
-      {/* ✅ Estado: éxito */}
       {status === "success" && (
         <div className="flex flex-col items-center mt-6 text-green-600 animate-pulse">
           <CheckCircle className="w-10 h-10 mb-2" />
@@ -230,25 +234,10 @@ export default function ScannerQR() {
         </div>
       )}
 
-      {/* ❌ Estado: error */}
       {status === "error" && (
         <div className="flex flex-col items-center mt-6 text-red-600 animate-pulse">
           <XCircle className="w-10 h-10 mb-2" />
           <p className="font-semibold text-center">{message}</p>
-        </div>
-      )}
-
-      {/* 🕓 Info del último escaneo */}
-      {lastScan && (
-        <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-3 w-72 text-sm text-gray-700">
-          <p>
-            <span className="font-semibold">Hora:</span>{" "}
-            {new Date(lastScan.scanned_at).toLocaleTimeString()}
-          </p>
-          <p>
-            <span className="font-semibold">Versión QR:</span>{" "}
-            {lastScan.new_version}
-          </p>
         </div>
       )}
     </div>
