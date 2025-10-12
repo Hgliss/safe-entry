@@ -80,7 +80,7 @@ export default function ScannerQR() {
       if (!isRunningRef.current) {
         await scanner.start(
           deviceId ? { deviceId } : constraints,
-          { fps: 10, qrbox: { width: 320, height: 320 } }, // 📦 cuadro más grande
+          { fps: 10, qrbox: { width: 320, height: 320 } },
           async (decodedText) => {
             await handleScan(decodedText);
           },
@@ -88,7 +88,7 @@ export default function ScannerQR() {
         );
         isRunningRef.current = true;
 
-        // Asegurar que el video encaje correctamente
+        // 🔧 Ajustar video internamente
         setTimeout(() => {
           const video = document.querySelector(`#${qrRegionId} video`);
           if (video) {
@@ -157,18 +157,24 @@ export default function ScannerQR() {
     setDirection((prev) => (prev === "in" ? "out" : "in"));
   };
 
-  // 📱 Ajustar el tamaño del escáner según orientación
+  // 📱 Ajustar el tamaño del escáner según pantalla
   useEffect(() => {
     const handleResize = () => {
       const el = document.getElementById(qrRegionId);
       if (!el) return;
 
-      if (window.innerHeight > window.innerWidth) {
-        el.style.width = "90vw"; // 📏 más grande
+      if (window.innerWidth < 768) {
+        // móviles
+        el.style.width = "90vw";
         el.style.height = "70vw";
+      } else if (window.innerWidth < 1200) {
+        // tablets
+        el.style.width = "60vw";
+        el.style.height = "45vw";
       } else {
-        el.style.width = "70vw";
-        el.style.height = "60vh";
+        // escritorio
+        el.style.width = "400px";
+        el.style.height = "400px";
       }
     };
     window.addEventListener("resize", handleResize);
@@ -178,28 +184,27 @@ export default function ScannerQR() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#F5F5EB] text-[#17637A] p-4">
-      <h1 className="text-3xl font-bold mb-6 text-center">
+      <h1 className="text-3xl md:text-4xl font-bold mb-6 text-center">
         Escáner de Código QR
       </h1>
 
       {/* 📸 Contenedor del escáner */}
-      <div className="relative flex flex-col items-center">
+      <div className="relative flex flex-col items-center w-full">
         <div
           id={qrRegionId}
-          className="border-4 border-[#17637A] rounded-2xl shadow-lg bg-black overflow-hidden flex items-center justify-center"
+          className="border-4 border-[#17637A] rounded-2xl shadow-lg bg-black overflow-hidden flex items-center justify-center mx-auto transition-all duration-300"
           style={{
             maxWidth: "500px",
-            maxHeight: "500px",
             borderRadius: "1rem",
           }}
         ></div>
 
         {/* 🎛️ Botones fijos debajo */}
-        <div className="flex gap-3 mt-6">
+        <div className="flex flex-wrap justify-center gap-3 mt-6">
           <button
             onClick={switchCamera}
             disabled={cameras.length < 2}
-            className="flex items-center gap-2 bg-[#17637A] hover:bg-[#145468] text-white font-semibold px-4 py-2 rounded-xl transition"
+            className="flex items-center gap-2 bg-[#17637A] hover:bg-[#145468] text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm md:text-base"
           >
             <Camera size={18} />
             Cambiar cámara
@@ -207,7 +212,7 @@ export default function ScannerQR() {
 
           <button
             onClick={toggleDirection}
-            className={`flex items-center gap-2 font-semibold px-4 py-2 rounded-xl transition ${
+            className={`flex items-center gap-2 font-semibold px-5 py-2.5 rounded-xl transition text-sm md:text-base ${
               direction === "in"
                 ? "bg-green-600 hover:bg-green-700 text-white"
                 : "bg-red-600 hover:bg-red-700 text-white"
@@ -228,16 +233,16 @@ export default function ScannerQR() {
       )}
 
       {status === "success" && (
-        <div className="flex flex-col items-center mt-6 text-green-600 animate-pulse">
+        <div className="flex flex-col items-center mt-6 text-green-600 animate-pulse text-center px-4">
           <CheckCircle className="w-10 h-10 mb-2" />
-          <p className="font-semibold text-center">{message}</p>
+          <p className="font-semibold">{message}</p>
         </div>
       )}
 
       {status === "error" && (
-        <div className="flex flex-col items-center mt-6 text-red-600 animate-pulse">
+        <div className="flex flex-col items-center mt-6 text-red-600 animate-pulse text-center px-4">
           <XCircle className="w-10 h-10 mb-2" />
-          <p className="font-semibold text-center">{message}</p>
+          <p className="font-semibold">{message}</p>
         </div>
       )}
     </div>
