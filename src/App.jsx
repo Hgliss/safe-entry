@@ -16,6 +16,9 @@ import Scanner from "./pages/admin/ScannerQR";
 import Historial from "./pages/admin/Historial";
 
 
+import PadreHome from "./pages/padres/PadreHome";
+
+
 
 function App() {
   return (
@@ -44,11 +47,15 @@ function App() {
             <Route path="atutor/:id" element={ <Atutor /> } />
             <Route path="scanner" element={ <Scanner /> } />
             <Route path="historial" element={ <Historial /> } />
-            
-
-      
-
         </Route>
+
+        {/* Padres con Layout fijo*/}
+        <Route path="/padres_tutor" element={ <PadreHome /> }>
+            
+            
+        </Route>
+
+
       </Routes>
     </Router>
   );
