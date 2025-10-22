@@ -3,6 +3,7 @@ import LoginPage from "./pages/public/LoginPage";
 import RoleRedirect from "./pages/public/RoleRedirect";
 import SetPassword from "./components/auth/SetPassword";
 import ResetPassword from "./components/auth/ResetPasswordModal";
+import ValidateQRPage from "./pages/public/ValidateQRPage";
 
 
 import AdminLayout from "./layouts/AdminLayout";
@@ -15,8 +16,11 @@ import Atutor from "./pages/admin/Asignar_Tutores";
 import Scanner from "./pages/admin/ScannerQR";
 import Historial from "./pages/admin/Historial";
 
-
+import PadreLayout from "./layouts/PadresLayout";
 import PadreHome from "./pages/padres/PadreHome";
+import ParentQrScreen from "./pages/padres/QrPage";
+import HistorialPadre from "./pages/padres/Historial";
+import Autorizaciones from "./pages/padres/AutorizarTeceros";
 
 
 
@@ -29,6 +33,7 @@ function App() {
         <Route path="/" element={ <Navigate to = "/login"/> } />
         <Route path="/set-password" element={ <SetPassword /> } />
         <Route path="/reset" element={ <ResetPassword /> } />
+        <Route path="/validate/:token" element={<ValidateQRPage />} />
 
         {/* Redirecciones de Roles */}
         <Route path="/role-redirect" element={ <RoleRedirect /> } />
@@ -50,9 +55,13 @@ function App() {
         </Route>
 
         {/* Padres con Layout fijo*/}
-        <Route path="/padres_tutor" element={ <PadreHome /> }>
-            
-            
+        <Route path="/padres" element={ <PadreLayout /> }>
+            {/* Rutas hijas de Padres */}
+            <Route index element={<Navigate to="home" replace />}/>
+            <Route path="home" element={ <PadreHome /> } />
+            <Route path="qrpage" element={ <ParentQrScreen /> }/>
+            <Route path="historial" element={ <HistorialPadre /> }/>
+            <Route path="autorizacion" element={ <Autorizaciones /> }/>
         </Route>
 
 
