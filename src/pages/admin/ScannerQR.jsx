@@ -6,6 +6,7 @@ export default function ScannerQR() {
   const [message, setMessage] = useState("Apunta la cámara al código QR");
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
+  const [lastDirection, setLastDirection] = useState(null);
   const scannerRef = useRef(null);
 
   // 🧩 Inicializar escáner
@@ -56,10 +57,10 @@ export default function ScannerQR() {
 
   const onScanFailure = () => {};
 
-  // 🔎 Validar QR y registrar en guardian_scan_log
+  // 🔎 Función principal para validar el token del QR
   const validarQR = async (token) => {
     try {
-      const ahora = new Date(
+      const now = new Date(
         new Date().toLocaleString("en-US", { timeZone: "America/Guatemala" })
       );
 
@@ -208,6 +209,7 @@ export default function ScannerQR() {
       setIsScanning(true);
       setMessage("Apunta la cámara al código QR");
       setScanResult(null);
+      setLastDirection(null);
     }
   };
 
@@ -244,6 +246,17 @@ export default function ScannerQR() {
 
             {scanResult.info && (
               <div className="text-sm text-gray-700">
+                {scanResult.info.child && (
+                  <p>
+                    <strong>Movimiento:</strong>{" "}
+                    <span className={`font-bold ${lastDirection === 'in' ? 'text-green-700' : 'text-red-700'}`}>
+                      {lastDirection === 'in' ? 'ENTRADA' : 'SALIDA'}
+                    </span>
+                  </p>
+                )}
+                {scanResult.info.guardian && (
+                  <p><strong>Tutor:</strong> {scanResult.info.guardian.first_name} {scanResult.info.guardian.first_last_name}</p>
+                )}
                 {scanResult.info.child && (
                   <p>
                     <strong>Niño:</strong>{" "}
