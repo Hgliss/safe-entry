@@ -20,10 +20,7 @@ export default function ScannerQR() {
           setIsScanning(true);
           html5QrCode.start(
             { facingMode: "environment" },
-            {
-              fps: 10,
-              qrbox: 250,
-            },
+            { fps: 10, qrbox: 250 },
             onScanSuccess,
             onScanFailure
           );
@@ -45,30 +42,29 @@ export default function ScannerQR() {
     };
   }, []);
 
-  // 🧠 Lógica al detectar un código QR
+  // 📸 Cuando se detecta un código QR
   const onScanSuccess = async (decodedText) => {
-    // Detener escáner mientras se valida
     if (scannerRef.current) {
       await scannerRef.current.stop();
       setIsScanning(false);
     }
 
-    setMessage("Validando código...");
     const token = decodedText.trim();
-
-    // Llamar validación en Supabase
+    setMessage("🔍 Validando código...");
     await validarQR(token);
   };
 
-  // (opcional) Manejo de errores o falsos positivos
-  const onScanFailure = (error) => {
-    // Puedes ignorar los intentos fallidos
-  };
+  const onScanFailure = () => {};
 
-  // 🔎 Validar QR en Supabase
+  // 🔎 Validar QR y registrar en guardian_scan_log
   const validarQR = async (token) => {
     try {
-      const { data, error } = await supabase
+      const ahora = new Date(
+        new Date().toLocaleString("en-US", { timeZone: "America/Guatemala" })
+      );
+
+      // 1️⃣ Buscar en child_authorization (terceros)
+      const { data: tempAuth } = await supabase
         .from("child_authorization")
         .select(
           `
@@ -77,80 +73,130 @@ export default function ScannerQR() {
           valid_from,
           valid_to,
           status,
-          child:child_id (
-            first_name,
-            first_last_name
-          ),
-          authorized:authorized_person_id (
-            first_name,
-            first_last_name
-          )
+          child:child_id(id_person, first_name, first_last_name),
+          authorized:authorized_person_id(id_person, first_name, first_last_name)
         `
         )
         .eq("qr_token", token)
-        .single();
+        .maybeSingle();
 
-      if (error || !data) {
-        setMessage("❌ QR no válido o no registrado.");
-        setScanResult({
-          estado: "inválido",
-          color: "red",
+      if (tempAuth) {
+        const inicio = new Date(tempAuth.valid_from);
+        const fin = new Date(tempAuth.valid_to);
+
+        if (ahora < inicio) {
+          return setScanResult({
+            estado: "pendiente",
+            color: "orange",
+            mensaje: "⏳ Este QR aún no está activo.",
+            info: tempAuth,
+          });
+        }
+
+        if (ahora > fin) {
+          await supabase
+            .from("child_authorization")
+            .update({ status: "expirado" })
+            .eq("id_authorization", tempAuth.id_authorization);
+          return setScanResult({
+            estado: "expirado",
+            color: "gray",
+            mensaje: "⛔ Este QR ha expirado.",
+            info: tempAuth,
+          });
+        }
+
+        await registrarEnHistorial({
+          token: tempAuth.qr_token,
+          guardian_id: tempAuth.authorized.id_person,
+          child_id: tempAuth.child.id_person,
+          tipo: "tercero",
         });
-        return;
+
+        return setScanResult({
+          estado: "válido",
+          color: "green",
+          mensaje: "✅ QR temporal válido — evento registrado.",
+          info: tempAuth,
+        });
       }
 
-      const ahora = new Date();
-      const inicio = new Date(data.valid_from);
-      const fin = new Date(data.valid_to);
+      // 2️⃣ Buscar en guardian_child_qr (padres)
+      const { data: padreQR } = await supabase
+        .from("guardian_child_qr")
+        .select(
+          `
+          id,
+          token,
+          guardian:guardian_id(id_person, first_name, first_last_name),
+          child:child_id(id_person, first_name, first_last_name)
+        `
+        )
+        .eq("token", token)
+        .maybeSingle();
 
-      // Validaciones de tiempo
-      if (ahora < inicio) {
-        setMessage("⏳ Este QR aún no está activo.");
-        setScanResult({
-          estado: "pendiente",
-          color: "orange",
-          info: data,
+      if (padreQR) {
+        await registrarEnHistorial({
+          token: padreQR.token,
+          guardian_id: padreQR.guardian.id_person,
+          child_id: padreQR.child.id_person,
+          tipo: "padre",
         });
-        return;
+
+        return setScanResult({
+          estado: "válido",
+          color: "blue",
+          mensaje: "👨‍👧 QR de padre válido — evento registrado.",
+          info: padreQR,
+        });
       }
 
-      if (ahora > fin) {
-        // Actualizar estado a expirado
-        await supabase
-          .from("child_authorization")
-          .update({ status: "expirado" })
-          .eq("id_authorization", data.id_authorization);
-
-        setMessage("⛔ Este QR ha expirado.");
-        setScanResult({
-          estado: "expirado",
-          color: "gray",
-          info: data,
-        });
-        return;
-      }
-
-      // ✅ Si todo está bien, QR válido
-      setMessage("✅ Código QR válido");
       setScanResult({
-        estado: "válido",
-        color: "green",
-        info: data,
+        estado: "inválido",
+        color: "red",
+        mensaje: "❌ QR no válido o no registrado.",
       });
-
-      // (Opcional) registrar evento de entrada/salida en tu tabla de logs
-      // await supabase.from("log_entries").insert([{ ... }]);
     } catch (err) {
       console.error(err);
-      setMessage("⚠️ Error al validar el código.");
       setScanResult({
         estado: "error",
         color: "red",
+        mensaje: "⚠️ Error al validar el código.",
       });
     }
   };
 
-  // 🔁 Reiniciar escáner
+  // 🧾 Registrar en guardian_scan_log
+  const registrarEnHistorial = async ({ token, guardian_id, child_id, tipo }) => {
+    try {
+      // Buscar último evento del mismo niño
+      const { data: ultimo } = await supabase
+        .from("guardian_scan_log")
+        .select("direction")
+        .eq("child_id", child_id)
+        .order("id", { ascending: false })
+        .limit(1)
+        .single();
+
+      let direction = "in";
+      if (ultimo && ultimo.direction === "in") direction = "out";
+
+      await supabase.from("guardian_scan_log").insert([
+        {
+          token,
+          guardian_id,
+          child_id,
+          direction,
+          location: tipo === "padre" ? "entrada principal" : "retiro autorizado",
+          notes: tipo === "padre" ? "Acceso del tutor" : "Autorizado temporal",
+        },
+      ]);
+    } catch (err) {
+      console.error("Error registrando historial:", err);
+    }
+  };
+
+  // 🔁 Reanudar escaneo
   const reiniciarEscaneo = async () => {
     if (scannerRef.current) {
       await scannerRef.current.start(
@@ -178,9 +224,7 @@ export default function ScannerQR() {
           style={{ width: "100%", height: "280px" }}
         ></div>
 
-        <p className="text-gray-700 mb-3">{message}</p>
-
-        {scanResult && (
+        {scanResult ? (
           <div
             className={`p-4 rounded-xl border-2 mt-4 ${
               scanResult.color === "green"
@@ -189,38 +233,36 @@ export default function ScannerQR() {
                 ? "border-red-500 bg-red-100"
                 : scanResult.color === "gray"
                 ? "border-gray-500 bg-gray-100"
+                : scanResult.color === "blue"
+                ? "border-blue-500 bg-blue-100"
                 : "border-yellow-500 bg-yellow-100"
             }`}
           >
-            <h2 className="text-lg font-semibold">
-              {scanResult.estado === "válido"
-                ? "✅ QR válido"
-                : scanResult.estado === "expirado"
-                ? "⛔ QR expirado"
-                : scanResult.estado === "pendiente"
-                ? "⏳ QR aún no activo"
-                : "❌ QR inválido"}
+            <h2 className="text-lg font-semibold mb-2">
+              {scanResult.mensaje}
             </h2>
 
             {scanResult.info && (
-              <div className="text-sm mt-2 text-gray-700">
-                <p>
-                  <strong>Niño:</strong>{" "}
-                  {scanResult.info.child.first_name}{" "}
-                  {scanResult.info.child.first_last_name}
-                </p>
-                <p>
-                  <strong>Autorizado:</strong>{" "}
-                  {scanResult.info.authorized.first_name}{" "}
-                  {scanResult.info.authorized.first_last_name}
-                </p>
-                <p>
-                  <strong>Válido hasta:</strong>{" "}
-                  {new Date(scanResult.info.valid_to).toLocaleString("es-GT")}
-                </p>
+              <div className="text-sm text-gray-700">
+                {scanResult.info.child && (
+                  <p>
+                    <strong>Niño:</strong>{" "}
+                    {scanResult.info.child.first_name}{" "}
+                    {scanResult.info.child.first_last_name}
+                  </p>
+                )}
+                {scanResult.info.authorized && (
+                  <p>
+                    <strong>Autorizado:</strong>{" "}
+                    {scanResult.info.authorized.first_name}{" "}
+                    {scanResult.info.authorized.first_last_name}
+                  </p>
+                )}
               </div>
             )}
           </div>
+        ) : (
+          <p className="text-gray-700 mb-3">{message}</p>
         )}
 
         {!isScanning && (
