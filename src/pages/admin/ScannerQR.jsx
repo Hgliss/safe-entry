@@ -65,10 +65,10 @@ export default function ScannerQR() {
     setMessage("");
 
     try {
-      // 1️⃣ Intentar con RPC (QR del padre)
-      const { data: result, error } = await supabase.rpc("scan_guardian_qr", {
+      // 1️⃣ Intentar con QR del padre (usando RPC)
+      const { data: parentResult, error: parentError } = await supabase.rpc("scan_guardian_qr", {
         p_token: token,
-        p_direction: direction,
+        p_direction: direction, // Usar la dirección seleccionada por el usuario
         p_scanned_by: user?.id_user,
         p_location: "Entrada principal",
       });
@@ -124,33 +124,24 @@ export default function ScannerQR() {
       if (ahora > fin)
         throw new Error("⛔ QR expirado.");
 
-      // 3️⃣ Registrar manualmente en guardian_scan_log
-      const { data: ultimo } = await supabase
-        .from("guardian_scan_log")
-        .select("direction")
-        .eq("child_id", tempAuth.child.id_person)
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      let newDirection = direction;
-      if (ultimo && ultimo.direction === "in") newDirection = "out";
-
-      await supabase.from("guardian_scan_log").insert([
+      // 3️⃣ Registrar manualmente en guardian_scan_log para el tercero
+      const { error: insertError } = await supabase.from("guardian_scan_log").insert([
         {
           token: tempAuth.qr_token,
           guardian_id: tempAuth.authorized.id_person,
           child_id: tempAuth.child.id_person,
-          direction: newDirection,
+          direction: direction, // Usar la dirección seleccionada por el usuario
           location: "Retiro autorizado",
           notes: "QR temporal de autorizado",
         },
       ]);
 
+      if (insertError) throw insertError;
+
       setStatus("success");
       setMessage(
         `✅ ${tempAuth.authorized.first_name} registró la ${
-          newDirection === "in" ? "entrada" : "salida"
+          direction === "in" ? "entrada" : "salida"
         } de ${tempAuth.child.first_name}.`
       );
       if (navigator.vibrate) navigator.vibrate(200);
