@@ -14,7 +14,7 @@ const RoleRedirect = () => {
 
     if (role === "Administrador") navigate("/admin/dashboard", { replace: true });
     else if (role === "Maestro") navigate("/maestro", { replace: true });
-    else if (role === "Padre/Tutor") navigate("/padres", { replace: true });
+    else if (role === "Padre/Tutor") navigate("/padres/home", { replace: true });
     else navigate("/login", { replace: true });
   }, [role, hydrated, navigate]);
 
