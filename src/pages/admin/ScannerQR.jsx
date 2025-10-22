@@ -73,20 +73,20 @@ export default function ScannerQR() {
         p_location: "Entrada principal",
       });
 
-      if (!error && result) {
-        setLastScan(result);
+      if (!parentError && parentResult) {
+        setLastScan(parentResult);
         setStatus("success");
         setMessage(
-          `${result.guardian_name || "Tutor"} registró la ${
-            result.direction === "in" ? "entrada" : "salida"
-          } de ${result.child_name || "el niño/a"} correctamente.`
+          `${parentResult.guardian_name || "Tutor"} registró la ${
+            parentResult.direction === "in" ? "entrada" : "salida"
+          } de ${parentResult.child_name || "el niño/a"} correctamente.`
         );
         if (navigator.vibrate) navigator.vibrate(200);
         resetAfterDelay();
         return;
       }
 
-      // 2️⃣ Si no es QR del padre, intentar con QR temporal (autorizado)
+      // 2️⃣ Si no es QR del padre (parentError existe), intentar con QR temporal (autorizado)
       const { data: tempAuth } = await supabase
         .from("child_authorization")
         .select(
@@ -179,13 +179,15 @@ export default function ScannerQR() {
       });
 
     return () => {
-      if (isRunningRef.current && scannerRef.current) {
-        scannerRef.current
-          .stop()
-          .then(() => {
-            isRunningRef.current = false;
-          })
-          .catch(() => {});
+      if (scannerRef.current && isRunningRef.current) {
+        scannerRef.current.stop()
+          .then(() => { isRunningRef.current = false; })
+          .catch(err => {
+            // A veces puede dar error si ya se detuvo, lo ignoramos.
+            if (err.message.includes("not running")) {
+              console.log("El escáner ya estaba detenido.");
+            }
+          });
       }
     };
   }, []);
@@ -198,9 +200,13 @@ export default function ScannerQR() {
     const nextCam = cameras[nextIndex].id;
 
     if (isRunningRef.current && scannerRef.current) {
-      await scannerRef.current.stop();
-      isRunningRef.current = false;
-      document.getElementById(qrRegionId).innerHTML = "";
+      try {
+        await scannerRef.current.stop();
+        isRunningRef.current = false;
+        document.getElementById(qrRegionId).innerHTML = "";
+      } catch (err) {
+        console.warn("Error al detener la cámara para cambiarla:", err);
+      }
     }
     setCameraId(nextCam);
     startScanner(nextCam);
