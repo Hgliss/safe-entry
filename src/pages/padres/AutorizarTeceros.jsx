@@ -22,7 +22,7 @@ export default function AutorizarPage() {
   const baseUrl =
     window.location.hostname.includes("localhost")
       ? "http://localhost:5173"
-      : "https://safe-entry.vercel.app";
+      : "https://safe-entry-pwa.vercel.app";
 
   // 🔹 Cargar hijos del tutor
   useEffect(() => {
