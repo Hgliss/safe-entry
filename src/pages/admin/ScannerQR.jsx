@@ -1,250 +1,237 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { supabase } from "../../api/supabaseClient";
-import { useAuthStore } from "../../store/useAuthStore";
-import {
-  CheckCircle,
-  XCircle,
-  Loader2,
-  Camera,
-  LogIn,
-  LogOut,
-} from "lucide-react";
 
 export default function ScannerQR() {
-  const [status, setStatus] = useState("idle");
-  const [message, setMessage] = useState("");
-  const [lastScan, setLastScan] = useState(null);
-  const [direction, setDirection] = useState("in");
-  const [cameraId, setCameraId] = useState(null);
-  const [cameras, setCameras] = useState([]);
-  const user = useAuthStore((state) => state.user);
-  const qrRegionId = "qr-reader";
+  const [message, setMessage] = useState("Apunta la cámara al código QR");
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanResult, setScanResult] = useState(null);
   const scannerRef = useRef(null);
-  const isRunningRef = useRef(false);
 
-  // ✅ Registrar escaneo
-  const handleScan = async (data) => {
-    if (!data || status === "loading") return;
-    setStatus("loading");
-    setMessage("");
+  // 🧩 Inicializar escáner
+  useEffect(() => {
+    const startScanner = async () => {
+      try {
+        const html5QrCode = new Html5Qrcode("qr-reader");
+        scannerRef.current = html5QrCode;
 
-    try {
-      const { data: result, error } = await supabase.rpc("scan_guardian_qr", {
-        p_token: data,
-        p_direction: direction,
-        p_scanned_by: user?.id_user,
-        p_location: "Entrada principal",
-      });
-
-      if (error) throw error;
-
-      setLastScan(result);
-      setStatus("success");
-      setMessage(
-        `${result.guardian_name || "Tutor"} registró la ${
-          result.direction === "in" ? "entrada" : "salida"
-        } de ${result.child_name || "el niño/a"} correctamente.`
-      );
-
-      if (navigator.vibrate) navigator.vibrate(200);
-
-      setTimeout(() => {
-        setStatus("idle");
-        setMessage("");
-        setLastScan(null);
-      }, 4000);
-    } catch (e) {
-      console.error(e);
-      setStatus("error");
-      setMessage("QR inválido o error al registrar el escaneo.");
-      setTimeout(() => setStatus("idle"), 4000);
-    }
-  };
-
-  // ✅ Iniciar cámara
-  const startScanner = async (deviceId) => {
-    const scanner = new Html5Qrcode(qrRegionId);
-    scannerRef.current = scanner;
-
-    const constraints = {
-      video: {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-      },
-      audio: false,
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras && cameras.length) {
+          setIsScanning(true);
+          html5QrCode.start(
+            { facingMode: "environment" },
+            {
+              fps: 10,
+              qrbox: 250,
+            },
+            onScanSuccess,
+            onScanFailure
+          );
+        } else {
+          setMessage("No se detectó cámara disponible.");
+        }
+      } catch (error) {
+        console.error(error);
+        setMessage("Error al iniciar el escáner.");
+      }
     };
 
-    try {
-      if (!isRunningRef.current) {
-        await scanner.start(
-          deviceId ? { deviceId } : constraints,
-          { fps: 10, qrbox: { width: 320, height: 320 } },
-          async (decodedText) => {
-            await handleScan(decodedText);
-          },
-          () => {}
-        );
-        isRunningRef.current = true;
-
-        // 🔧 Ajustar video internamente
-        setTimeout(() => {
-          const video = document.querySelector(`#${qrRegionId} video`);
-          if (video) {
-            video.style.width = "100%";
-            video.style.height = "100%";
-            video.style.objectFit = "cover";
-            video.style.borderRadius = "1rem";
-          }
-        }, 600);
-      }
-    } catch (err) {
-      console.error("Error al iniciar cámara:", err);
-      setStatus("error");
-      setMessage(
-        "No se pudo acceder a la cámara o el navegador la tiene bloqueada."
-      );
-    }
-  };
-
-  // ✅ Obtener cámaras disponibles
-  useEffect(() => {
-    Html5Qrcode.getCameras()
-      .then((devices) => {
-        setCameras(devices);
-        if (devices.length > 0) {
-          const defaultCam = devices[0].id;
-          setCameraId(defaultCam);
-          startScanner(defaultCam);
-        }
-      })
-      .catch((err) => {
-        console.error("No se pudieron obtener cámaras:", err);
-        setMessage("No se detectaron cámaras disponibles.");
-      });
+    startScanner();
 
     return () => {
-      if (isRunningRef.current && scannerRef.current) {
-        scannerRef.current
-          .stop()
-          .then(() => {
-            isRunningRef.current = false;
-          })
-          .catch(() => {});
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
       }
     };
   }, []);
 
-  // 🔁 Cambiar cámara
-  const switchCamera = async () => {
-    if (cameras.length < 2) return;
-    const currentIndex = cameras.findIndex((c) => c.id === cameraId);
-    const nextIndex = (currentIndex + 1) % cameras.length;
-    const nextCam = cameras[nextIndex].id;
-
-    if (isRunningRef.current && scannerRef.current) {
+  // 🧠 Lógica al detectar un código QR
+  const onScanSuccess = async (decodedText) => {
+    // Detener escáner mientras se valida
+    if (scannerRef.current) {
       await scannerRef.current.stop();
-      isRunningRef.current = false;
-      document.getElementById(qrRegionId).innerHTML = "";
+      setIsScanning(false);
     }
-    setCameraId(nextCam);
-    startScanner(nextCam);
+
+    setMessage("Validando código...");
+    const token = decodedText.trim();
+
+    // Llamar validación en Supabase
+    await validarQR(token);
   };
 
-  // ↔️ Alternar dirección
-  const toggleDirection = () => {
-    setDirection((prev) => (prev === "in" ? "out" : "in"));
+  // (opcional) Manejo de errores o falsos positivos
+  const onScanFailure = (error) => {
+    // Puedes ignorar los intentos fallidos
   };
 
-  // 📱 Ajustar el tamaño del escáner según pantalla
-  useEffect(() => {
-    const handleResize = () => {
-      const el = document.getElementById(qrRegionId);
-      if (!el) return;
+  // 🔎 Validar QR en Supabase
+  const validarQR = async (token) => {
+    try {
+      const { data, error } = await supabase
+        .from("child_authorization")
+        .select(
+          `
+          id_authorization,
+          qr_token,
+          valid_from,
+          valid_to,
+          status,
+          child:child_id (
+            first_name,
+            first_last_name
+          ),
+          authorized:authorized_person_id (
+            first_name,
+            first_last_name
+          )
+        `
+        )
+        .eq("qr_token", token)
+        .single();
 
-      if (window.innerWidth < 768) {
-        // móviles
-        el.style.width = "90vw";
-        el.style.height = "70vw";
-      } else if (window.innerWidth < 1200) {
-        // tablets
-        el.style.width = "60vw";
-        el.style.height = "45vw";
-      } else {
-        // escritorio
-        el.style.width = "400px";
-        el.style.height = "400px";
+      if (error || !data) {
+        setMessage("❌ QR no válido o no registrado.");
+        setScanResult({
+          estado: "inválido",
+          color: "red",
+        });
+        return;
       }
-    };
-    window.addEventListener("resize", handleResize);
-    handleResize();
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+
+      const ahora = new Date();
+      const inicio = new Date(data.valid_from);
+      const fin = new Date(data.valid_to);
+
+      // Validaciones de tiempo
+      if (ahora < inicio) {
+        setMessage("⏳ Este QR aún no está activo.");
+        setScanResult({
+          estado: "pendiente",
+          color: "orange",
+          info: data,
+        });
+        return;
+      }
+
+      if (ahora > fin) {
+        // Actualizar estado a expirado
+        await supabase
+          .from("child_authorization")
+          .update({ status: "expirado" })
+          .eq("id_authorization", data.id_authorization);
+
+        setMessage("⛔ Este QR ha expirado.");
+        setScanResult({
+          estado: "expirado",
+          color: "gray",
+          info: data,
+        });
+        return;
+      }
+
+      // ✅ Si todo está bien, QR válido
+      setMessage("✅ Código QR válido");
+      setScanResult({
+        estado: "válido",
+        color: "green",
+        info: data,
+      });
+
+      // (Opcional) registrar evento de entrada/salida en tu tabla de logs
+      // await supabase.from("log_entries").insert([{ ... }]);
+    } catch (err) {
+      console.error(err);
+      setMessage("⚠️ Error al validar el código.");
+      setScanResult({
+        estado: "error",
+        color: "red",
+      });
+    }
+  };
+
+  // 🔁 Reiniciar escáner
+  const reiniciarEscaneo = async () => {
+    if (scannerRef.current) {
+      await scannerRef.current.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        onScanSuccess,
+        onScanFailure
+      );
+      setIsScanning(true);
+      setMessage("Apunta la cámara al código QR");
+      setScanResult(null);
+    }
+  };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-[#F5F5EB] text-[#17637A] p-4">
-      <h1 className="text-3xl md:text-4xl font-bold mb-6 text-center">
-        Escáner de Código QR
-      </h1>
+    <div className="min-h-screen bg-[#ECEFF1] flex flex-col items-center justify-center p-6">
+      <div className="bg-white shadow-lg rounded-2xl p-6 w-full max-w-md text-center">
+        <h1 className="text-2xl font-semibold text-[#17637A] mb-4">
+          Escáner de códigos QR
+        </h1>
 
-      {/* 📸 Contenedor del escáner */}
-      <div className="relative flex flex-col items-center w-full">
         <div
-          id={qrRegionId}
-          className="border-4 border-[#17637A] rounded-2xl shadow-lg bg-black overflow-hidden flex items-center justify-center mx-auto transition-all duration-300"
-          style={{
-            maxWidth: "500px",
-            borderRadius: "1rem",
-          }}
+          id="qr-reader"
+          className="border-2 border-[#17637A] rounded-lg mb-4 w-full"
+          style={{ width: "100%", height: "280px" }}
         ></div>
 
-        {/* 🎛️ Botones fijos debajo */}
-        <div className="flex flex-wrap justify-center gap-3 mt-6">
-          <button
-            onClick={switchCamera}
-            disabled={cameras.length < 2}
-            className="flex items-center gap-2 bg-[#17637A] hover:bg-[#145468] text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm md:text-base"
-          >
-            <Camera size={18} />
-            Cambiar cámara
-          </button>
+        <p className="text-gray-700 mb-3">{message}</p>
 
-          <button
-            onClick={toggleDirection}
-            className={`flex items-center gap-2 font-semibold px-5 py-2.5 rounded-xl transition text-sm md:text-base ${
-              direction === "in"
-                ? "bg-green-600 hover:bg-green-700 text-white"
-                : "bg-red-600 hover:bg-red-700 text-white"
+        {scanResult && (
+          <div
+            className={`p-4 rounded-xl border-2 mt-4 ${
+              scanResult.color === "green"
+                ? "border-green-500 bg-green-100"
+                : scanResult.color === "red"
+                ? "border-red-500 bg-red-100"
+                : scanResult.color === "gray"
+                ? "border-gray-500 bg-gray-100"
+                : "border-yellow-500 bg-yellow-100"
             }`}
           >
-            {direction === "in" ? <LogIn size={18} /> : <LogOut size={18} />}
-            {direction === "in" ? "Entrada" : "Salida"}
+            <h2 className="text-lg font-semibold">
+              {scanResult.estado === "válido"
+                ? "✅ QR válido"
+                : scanResult.estado === "expirado"
+                ? "⛔ QR expirado"
+                : scanResult.estado === "pendiente"
+                ? "⏳ QR aún no activo"
+                : "❌ QR inválido"}
+            </h2>
+
+            {scanResult.info && (
+              <div className="text-sm mt-2 text-gray-700">
+                <p>
+                  <strong>Niño:</strong>{" "}
+                  {scanResult.info.child.first_name}{" "}
+                  {scanResult.info.child.first_last_name}
+                </p>
+                <p>
+                  <strong>Autorizado:</strong>{" "}
+                  {scanResult.info.authorized.first_name}{" "}
+                  {scanResult.info.authorized.first_last_name}
+                </p>
+                <p>
+                  <strong>Válido hasta:</strong>{" "}
+                  {new Date(scanResult.info.valid_to).toLocaleString("es-GT")}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!isScanning && (
+          <button
+            onClick={reiniciarEscaneo}
+            className="mt-6 bg-[#17637A] text-white px-4 py-2 rounded-lg hover:bg-[#145665]"
+          >
+            🔄 Reanudar escaneo
           </button>
-        </div>
+        )}
       </div>
-
-      {/* 🔄 Estado de carga / éxito / error */}
-      {status === "loading" && (
-        <div className="flex flex-col items-center mt-6 text-[#17637A]">
-          <Loader2 className="animate-spin w-10 h-10 mb-2" />
-          <p>Procesando escaneo...</p>
-        </div>
-      )}
-
-      {status === "success" && (
-        <div className="flex flex-col items-center mt-6 text-green-600 animate-pulse text-center px-4">
-          <CheckCircle className="w-10 h-10 mb-2" />
-          <p className="font-semibold">{message}</p>
-        </div>
-      )}
-
-      {status === "error" && (
-        <div className="flex flex-col items-center mt-6 text-red-600 animate-pulse text-center px-4">
-          <XCircle className="w-10 h-10 mb-2" />
-          <p className="font-semibold">{message}</p>
-        </div>
-      )}
     </div>
   );
 }
