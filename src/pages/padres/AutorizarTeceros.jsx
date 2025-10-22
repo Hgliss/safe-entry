@@ -18,11 +18,10 @@ export default function AutorizarPage() {
   const [childName, setChildName] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 🔹 Detecta el dominio actual (local o producción)
   const baseUrl =
     window.location.hostname.includes("localhost")
       ? "http://localhost:5173"
-      : "https://safe-entry-pwa.vercel.app";
+      : "https://safe-entry.vercel.app";
 
   // 🔹 Cargar hijos del tutor
   useEffect(() => {
@@ -33,16 +32,15 @@ export default function AutorizarPage() {
         } = await supabase.auth.getUser();
         if (!user) return;
 
-        const { data: userData, error: userError } = await supabase
+        const { data: userData } = await supabase
           .from("app_user")
           .select("person_id")
           .eq("auth_user_id", user.id)
           .single();
 
-        if (userError || !userData) throw userError;
         const guardianPersonId = userData.person_id;
 
-        const { data: hijos, error } = await supabase
+        const { data: hijos } = await supabase
           .from("guardian_child_qr")
           .select(`
             child:child_id (
@@ -52,8 +50,6 @@ export default function AutorizarPage() {
             )
           `)
           .eq("guardian_id", guardianPersonId);
-
-        if (error) throw error;
 
         const listaHijos = hijos.map((h) => ({
           id: h.child.id_person,
@@ -69,7 +65,7 @@ export default function AutorizarPage() {
     fetchChildren();
   }, []);
 
-  // 🔹 Generar la autorización
+  // 🔹 Generar autorización y QR funcional
   const generarAutorizacion = async () => {
     try {
       if (!selectedChild) {
@@ -84,14 +80,8 @@ export default function AutorizarPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+      if (!user) return;
 
-      if (!user) {
-        setMessage("❌ No hay sesión activa.");
-        setLoading(false);
-        return;
-      }
-
-      // Obtener el person_id del tutor
       const { data: userData } = await supabase
         .from("app_user")
         .select("person_id")
@@ -108,11 +98,10 @@ export default function AutorizarPage() {
         .maybeSingle();
 
       let authorizedPersonId;
-
       if (personaExistente) {
         authorizedPersonId = personaExistente.id_person;
       } else {
-        const { data: nuevaPersona, error: personaError } = await supabase
+        const { data: nuevaPersona } = await supabase
           .from("person")
           .insert([
             {
@@ -124,20 +113,18 @@ export default function AutorizarPage() {
               municipality: municipality || "Ciudad de Guatemala",
               departments: "Guatemala",
               birth_date: "2000-01-01",
-              rol_id: 5, 
+              rol_id: 5,
             },
           ])
           .select()
           .single();
 
-        if (personaError) throw personaError;
         authorizedPersonId = nuevaPersona.id_person;
       }
 
       const childData = children.find((c) => c.id === parseInt(selectedChild));
       setChildName(childData ? childData.nombre : "");
 
-      // Insertar autorización
       const { data, error } = await supabase
         .from("child_authorization")
         .insert([
@@ -155,10 +142,12 @@ export default function AutorizarPage() {
 
       if (error) throw error;
 
-      // 🎨 Crear un QR con diseño bonito
+      // 🎯 QR funcional: solo el qr_token (sin URL ni texto)
+      const qrContent = data.qr_token;
+
+      // 🎨 Generar QR visual bonito
       const qrCanvas = document.createElement("canvas");
-      const qrText = `${baseUrl}/validate/${data.qr_token}`;
-      await QRCode.toCanvas(qrCanvas, qrText, { width: 250, margin: 1 });
+      await QRCode.toCanvas(qrCanvas, qrContent, { width: 250, margin: 1 });
 
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
@@ -167,11 +156,11 @@ export default function AutorizarPage() {
       canvas.width = width;
       canvas.height = height;
 
-      // Fondo
+      // Fondo blanco
       ctx.fillStyle = "#FFFFFF";
       ctx.fillRect(0, 0, width, height);
 
-      // Encabezado
+      // Encabezado azul SAFEENTRY
       ctx.fillStyle = "#17637A";
       ctx.fillRect(0, 0, width, 80);
       ctx.fillStyle = "#FFFFFF";
@@ -179,7 +168,7 @@ export default function AutorizarPage() {
       ctx.textAlign = "center";
       ctx.fillText("🧸 SAFEENTRY", width / 2, 50);
 
-      // Insertar QR
+      // Dibuja el QR centrado (con el token interno)
       const qrX = (width - 250) / 2;
       ctx.drawImage(qrCanvas, qrX, 100, 250, 250);
 
@@ -215,7 +204,7 @@ export default function AutorizarPage() {
     }
   };
 
-  // 📤 Compartir QR
+  // 📤 Compartir / copiar / descargar / limpiar
   const compartirQR = async () => {
     try {
       if (navigator.share && qrImage) {
@@ -225,9 +214,7 @@ export default function AutorizarPage() {
         ];
         await navigator.share({
           title: "🧸 SafeEntry - Código de Autorización",
-          text: `Código QR para retiro autorizado en SafeEntry 🏫\n\nNiño: ${childName}\nAutorizado: ${authorizedName} ${authorizedLastName}\nVálido hasta: ${new Date(
-            validTo
-          ).toLocaleString("es-GT")}\n\nEscanea este código en SafeEntry para validar.`,
+          text: "Escanea este código en SafeEntry para validar la autorización.",
           files: filesArray,
         });
       } else {
@@ -240,14 +227,12 @@ export default function AutorizarPage() {
     }
   };
 
-  // 🔗 Copiar enlace
   const copiarEnlace = async () => {
     const enlace = `${baseUrl}/validate/${qrToken}`;
     await navigator.clipboard.writeText(enlace);
-    alert("🔗 Enlace copiado al portapapeles:\n" + enlace);
+    alert("🔗 Enlace copiado:\n" + enlace);
   };
 
-  // 💾 Descargar QR
   const descargarQR = () => {
     const link = document.createElement("a");
     link.href = qrImage;
@@ -255,7 +240,6 @@ export default function AutorizarPage() {
     link.click();
   };
 
-  // 🧹 Limpiar formulario
   const limpiarFormulario = () => {
     setSelectedChild("");
     setAuthorizedName("");
@@ -281,6 +265,7 @@ export default function AutorizarPage() {
           QR temporal.
         </p>
 
+        {/* Formulario */}
         <div className="space-y-4">
           <select
             value={selectedChild}
@@ -302,7 +287,6 @@ export default function AutorizarPage() {
             onChange={(e) => setAuthorizedName(e.target.value)}
             className="w-full p-2 border rounded-lg"
           />
-
           <input
             type="text"
             placeholder="Apellido del autorizado"
@@ -310,7 +294,6 @@ export default function AutorizarPage() {
             onChange={(e) => setAuthorizedLastName(e.target.value)}
             className="w-full p-2 border rounded-lg"
           />
-
           <input
             type="text"
             placeholder="CUI o DPI"
@@ -318,7 +301,6 @@ export default function AutorizarPage() {
             onChange={(e) => setDpi(e.target.value)}
             className="w-full p-2 border rounded-lg"
           />
-
           <input
             type="text"
             placeholder="Teléfono"
@@ -326,7 +308,6 @@ export default function AutorizarPage() {
             onChange={(e) => setPhone(e.target.value)}
             className="w-full p-2 border rounded-lg"
           />
-
           <input
             type="text"
             placeholder="Dirección"
@@ -334,7 +315,6 @@ export default function AutorizarPage() {
             onChange={(e) => setAddress(e.target.value)}
             className="w-full p-2 border rounded-lg"
           />
-
           <input
             type="text"
             placeholder="Municipio"
@@ -342,7 +322,6 @@ export default function AutorizarPage() {
             onChange={(e) => setMunicipality(e.target.value)}
             className="w-full p-2 border rounded-lg"
           />
-
           <label className="block text-gray-700 text-sm font-medium">
             Vigencia del código (hasta):
           </label>
