@@ -1,101 +1,186 @@
-import React from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  QrCode,
-  History,
-  Bell,
-  UserPlus,
-  LogOut,
-} from "lucide-react";
-import { useAuthStore } from "../../store/useAuthStore";
+import React, { useEffect, useState } from "react";
+import { supabase } from "../../api/supabaseClient";
+import { QrCode, History, Bell, Info } from "lucide-react";
 
-export default function ParentLayout() {
-  const navigate = useNavigate();
-  const { logoutUser, user } = useAuthStore();
+export default function PadreHome() {
+  const [registros, setRegistros] = useState([]);
+  const [notificaciones, setNotificaciones] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const menuItems = [
-    {
-      title: "Código QR",
-      description: "Muestra el código QR del niño o tutor.",
-      icon: <QrCode size={38} />,
-      color: "bg-[#17637A]",
-      action: () => navigate("/padres/qr"),
-    },
-    
-    {
-      title: "Historial",
-      description: "Visualiza los ingresos y egresos registrados.",
-      icon: <History size={38} />,
-      color: "bg-green-600",
-      action: () => navigate("/padres/historial"),
-    },
-    {
-      title: "Notificaciones",
-      description: "Consulta avisos y alertas recientes.",
-      icon: <Bell size={38} />,
-      color: "bg-yellow-500",
-      action: () => navigate("/padres/notificaciones"),
-    },
-    {
-      title: "Autorizar Terceros",
-      description: "Crea permisos temporales de retiro.",
-      icon: <UserPlus size={38} />,
-      color: "bg-[#145468]",
-      action: () => navigate("/padres/autorizar"),
-    },
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) return;
+
+        // Obtener person_id del padre
+        const { data: userData } = await supabase
+          .from("app_user")
+          .select("person_id")
+          .eq("auth_user_id", user.id)
+          .single();
+
+        const guardianId = userData.person_id;
+
+        // 🔹 Últimos registros (entradas/salidas)
+        const { data: scanData } = await supabase
+          .from("guardian_scan_log")
+          .select(`
+            id,
+            direction,
+            scanned_at,
+            child:child_id (
+              first_name,
+              first_last_name
+            )
+          `)
+          .eq("guardian_id", guardianId)
+          .order("scanned_at", { ascending: false })
+          .limit(5);
+
+        // 🔹 Últimas notificaciones (puedes reemplazar con tu tabla real)
+        const mockNotifications = [
+          {
+            id: 1,
+            message: "Entrada registrada correctamente de Lisbeth Hernández",
+            time: "Hace 2 horas",
+          },
+          {
+            id: 2,
+            message: "Recuerda revisar el horario de salida de tus hijos",
+            time: "Hoy a las 7:00 AM",
+          },
+        ];
+
+        setRegistros(scanData || []);
+        setNotificaciones(mockNotifications);
+      } catch (error) {
+        console.error("Error al cargar datos:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[#ECEFF1]">
+        <p className="text-gray-600 text-lg">Cargando información...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F5F5EB] text-[#17637A]">
-      {/* Encabezado */}
-      <header className="w-full bg-[#17637A] text-white py-4 px-4 sm:px-6 flex justify-between items-center shadow-md">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold">SafeEntry Padres</h1>
-          <p className="text-sm opacity-90">
-            Bienvenido, {user?.email || "Usuario"}
+    <div className="p-6 bg-[#ECEFF1] min-h-screen">
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Sección de instrucciones QR */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 flex items-start gap-4">
+          <div className="bg-[#17637A]/10 p-3 rounded-full">
+            <QrCode size={36} className="text-[#17637A]" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold text-[#17637A] mb-1">
+              Bienvenido a SafeEntry Padres
+            </h1>
+            <p className="text-gray-700">
+              Usa el <strong>código QR</strong> de tus hijos para registrar
+              entradas y salidas rápidamente. Muestra el código al personal al
+              llegar o salir de la guardería. Tu información siempre estará
+              protegida 🔒.
+            </p>
+          </div>
+        </div>
+
+        {/* Últimos registros */}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-[#17637A] flex items-center gap-2">
+              <History size={22} /> Últimos registros
+            </h2>
+            <a
+              href="/padres_tutor/historial"
+              className="text-sm text-[#17637A] hover:underline"
+            >
+              Ver historial completo
+            </a>
+          </div>
+
+          {registros.length > 0 ? (
+            <ul className="divide-y divide-gray-200">
+              {registros.map((reg) => (
+                <li
+                  key={reg.id}
+                  className="py-3 flex justify-between items-center"
+                >
+                  <div>
+                    <p className="font-medium text-gray-800">
+                      {reg.child.first_name} {reg.child.first_last_name}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {new Date(reg.scanned_at).toLocaleString("es-GT", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </p>
+                  </div>
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      reg.direction === "in"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    {reg.direction === "in" ? "Entrada" : "Salida"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-600 text-sm text-center">
+              No hay registros recientes.
+            </p>
+          )}
+        </div>
+
+        {/* Últimas notificaciones */}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-[#17637A] flex items-center gap-2">
+              <Bell size={22} /> Últimas notificaciones
+            </h2>
+          </div>
+
+          {notificaciones.length > 0 ? (
+            <ul className="divide-y divide-gray-200">
+              {notificaciones.map((n) => (
+                <li key={n.id} className="py-3">
+                  <p className="text-gray-800">{n.message}</p>
+                  <p className="text-sm text-gray-500">{n.time}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-600 text-sm text-center">
+              No hay notificaciones recientes.
+            </p>
+          )}
+        </div>
+
+        {/* Consejos o información adicional */}
+        <div className="bg-[#17637A]/10 rounded-2xl p-5 shadow-sm flex items-start gap-3">
+          <Info size={28} className="text-[#17637A]" />
+          <p className="text-gray-700 text-sm">
+            Recuerda mantener actualizados tus datos de contacto en la
+            guardería para recibir alertas en tiempo real sobre las actividades
+            de tus hijos.
           </p>
         </div>
-        <button
-          onClick={logoutUser}
-          className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-2 sm:px-3 py-1.5 rounded-lg transition"
-          title="Cerrar sesión"
-        >
-          <LogOut size={18} />
-          <span className="hidden sm:inline">Salir</span>
-        </button>
-      </header>
-
-      {/* Contenido principal */}
-      <main className="flex-1 flex flex-col items-center justify-start p-4 sm:p-6">
-        <h2 className="text-xl md:text-2xl font-bold mb-6 text-center">
-          Menú Principal del Tutor
-        </h2>
-
-        {/* Grid responsive */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-5 sm:gap-6 w-full max-w-4xl">
-          {menuItems.map((item, index) => (
-            <div
-              key={index}
-              onClick={item.action}
-              className={`cursor-pointer flex flex-col justify-between p-6 rounded-2xl shadow-md hover:scale-[1.02] hover:shadow-lg transition-all duration-200 text-white ${item.color}`}
-            >
-              <div className="flex items-start justify-between mb-4">
-                {item.icon}
-                <span className="text-xs sm:text-sm font-semibold bg-white/90 text-[#17637A] px-3 py-1 rounded-full shadow-sm">
-                  Ver más
-                </span>
-              </div>
-              <h3 className="text-xl font-bold mb-1">{item.title}</h3>
-              <p className="text-sm opacity-90">{item.description}</p>
-            </div>
-          ))}
-        </div>
-      </main>
-
-      {/* Pie de página */}
-      <footer className="w-full text-center py-4 text-sm text-gray-600">
-        © {new Date().getFullYear()} SafeEntry — Todos los derechos reservados
-      </footer>
+      </div>
     </div>
   );
 }
