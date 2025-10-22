@@ -6,7 +6,7 @@ export default function ScannerQR() {
   const [message, setMessage] = useState("Apunta la cámara al código QR");
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
-  const [lastDirection, setLastDirection] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const scannerRef = useRef(null);
 
   // 🧩 Inicializar escáner
@@ -57,10 +57,10 @@ export default function ScannerQR() {
 
   const onScanFailure = () => {};
 
-  // 🔎 Función principal para validar el token del QR
+  // 🔎 Función principal para validar el token del QR (sin registrar aún)
   const validarQR = async (token) => {
     try {
-      const now = new Date(
+      const ahora = new Date(
         new Date().toLocaleString("en-US", { timeZone: "America/Guatemala" })
       );
 
@@ -209,7 +209,7 @@ export default function ScannerQR() {
       setIsScanning(true);
       setMessage("Apunta la cámara al código QR");
       setScanResult(null);
-      setLastDirection(null);
+      setIsProcessing(false);
     }
   };
 
@@ -247,14 +247,6 @@ export default function ScannerQR() {
             {scanResult.info && (
               <div className="text-sm text-gray-700">
                 {scanResult.info.child && (
-                  <p>
-                    <strong>Movimiento:</strong>{" "}
-                    <span className={`font-bold ${lastDirection === 'in' ? 'text-green-700' : 'text-red-700'}`}>
-                      {lastDirection === 'in' ? 'ENTRADA' : 'SALIDA'}
-                    </span>
-                  </p>
-                )}
-                {scanResult.info.guardian && (
                   <p><strong>Tutor:</strong> {scanResult.info.guardian.first_name} {scanResult.info.guardian.first_last_name}</p>
                 )}
                 {scanResult.info.child && (
@@ -275,17 +267,39 @@ export default function ScannerQR() {
             )}
           </div>
         ) : (
-          <p className="text-gray-700 mb-3">{message}</p>
+          <p className="text-gray-700 mb-3 h-10">{message}</p>
         )}
 
-        {!isScanning && (
+        {/* Botones de acción después de escanear */}
+        {scanResult && scanResult.estado === "válido" && (
+          <div className="mt-4 flex justify-center gap-4">
+            <button
+              onClick={() => handleRegister("in")}
+              disabled={isProcessing}
+              className="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:bg-gray-400"
+            >
+              {isProcessing ? "Registrando..." : "Registrar Entrada"}
+            </button>
+            <button
+              onClick={() => handleRegister("out")}
+              disabled={isProcessing}
+              className="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 transition disabled:bg-gray-400"
+            >
+              {isProcessing ? "Registrando..." : "Registrar Salida"}
+            </button>
+          </div>
+        )}
+
+        {/* Botón para reanudar o escanear de nuevo */}
+        {(!isScanning && !isProcessing && scanResult?.estado !== 'válido') && (
           <button
             onClick={reiniciarEscaneo}
-            className="mt-6 bg-[#17637A] text-white px-4 py-2 rounded-lg hover:bg-[#145665]"
+            className="mt-6 bg-[#17637A] text-white px-6 py-2 rounded-lg hover:bg-[#145665] transition"
           >
             🔄 Reanudar escaneo
           </button>
         )}
+
       </div>
     </div>
   );
