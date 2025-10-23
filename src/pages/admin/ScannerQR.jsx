@@ -2,45 +2,35 @@ import React, { useEffect, useState, useRef } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { supabase } from "../../api/supabaseClient";
 import { useAuthStore } from "../../store/useAuthStore";
-import {
-  CheckCircle,
-  XCircle,
-  Loader2,
-  Camera,
-  LogIn,
-  LogOut,
-} from "lucide-react";
+import { CheckCircle, XCircle, Loader2, LogIn, LogOut } from "lucide-react";
 
 export default function ScannerQR() {
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
-  const [lastScan, setLastScan] = useState(null);
   const [direction, setDirection] = useState("in");
-  const [cameraId, setCameraId] = useState(null);
-  const [cameras, setCameras] = useState([]);
+  const [lastScan, setLastScan] = useState(null);
   const user = useAuthStore((state) => state.user);
   const qrRegionId = "qr-reader";
   const scannerRef = useRef(null);
   const isRunningRef = useRef(false);
 
-  // ✅ Inicia escáner de cámara
-  const startScanner = async (deviceId) => {
+  // ✅ Inicia escáner con cámara frontal
+  const startScanner = async () => {
     const scanner = new Html5Qrcode(qrRegionId);
     scannerRef.current = scanner;
 
     try {
       if (!isRunningRef.current) {
         await scanner.start(
-          deviceId ? { deviceId } : { facingMode: "environment" },
+          { facingMode: "user" }, // Cámara frontal
           { fps: 10, qrbox: { width: 320, height: 320 } },
           async (decodedText) => {
             await handleScan(decodedText.trim());
-          },
-          () => {}
+          }
         );
         isRunningRef.current = true;
 
-        // Ajustar el estilo del video
+        // Ajuste visual del video
         setTimeout(() => {
           const video = document.querySelector(`#${qrRegionId} video`);
           if (video) {
@@ -49,44 +39,41 @@ export default function ScannerQR() {
             video.style.objectFit = "cover";
             video.style.borderRadius = "1rem";
           }
-        }, 600);
+        }, 500);
       }
     } catch (err) {
       console.error("Error al iniciar cámara:", err);
       setStatus("error");
-      setMessage("No se pudo acceder a la cámara o está bloqueada.");
+      setMessage("No se pudo acceder a la cámara. Verifica permisos.");
     }
   };
 
-  // ✅ Registrar escaneo
+  // ✅ Lógica principal del escaneo
   const handleScan = async (token) => {
     if (!token || status === "loading") return;
     setStatus("loading");
     setMessage("");
 
     try {
-      // 1️⃣ Intentar con QR del padre (usando RPC)
-      const { data: parentResult, error: parentError } = await supabase.rpc("scan_guardian_qr", {
-        p_token: token,
-        p_direction: direction, // Usar la dirección seleccionada por el usuario
-        p_scanned_by: user?.id_user,
-        p_location: "Entrada principal",
-      });
+      // 1️⃣ Intentar validar con QR del padre
+      const { data: parentResult, error: parentError } = await supabase.rpc(
+        "scan_guardian_qr",
+        {
+          p_token: token,
+          p_direction: direction,
+          p_scanned_by: user?.id_user,
+          p_location: "Entrada principal",
+        }
+      );
 
       if (!parentError && parentResult) {
         setLastScan(parentResult);
-        setStatus("success");
-        setMessage(
-          `${parentResult.guardian_name || "Tutor"} registró la ${
-            parentResult.direction === "in" ? "entrada" : "salida"
-          } de ${parentResult.child_name || "el niño/a"} correctamente.`
-        );
-        if (navigator.vibrate) navigator.vibrate(200);
-        resetAfterDelay();
+        await registerLog(parentResult.guardian_id, parentResult.child_id);
+        showSuccessMessage(parentResult.guardian_name, parentResult.child_name);
         return;
       }
 
-      // 2️⃣ Si no es QR del padre (parentError existe), intentar con QR temporal (autorizado)
+      // 2️⃣ Intentar con QR de tercero autorizado
       const { data: tempAuth } = await supabase
         .from("child_authorization")
         .select(
@@ -111,49 +98,64 @@ export default function ScannerQR() {
         .eq("qr_token", token)
         .maybeSingle();
 
-      if (!tempAuth) throw new Error("QR no encontrado.");
+      if (!tempAuth) throw new Error("QR no válido o no registrado.");
 
-      const ahora = new Date(
+      const now = new Date(
         new Date().toLocaleString("en-US", { timeZone: "America/Guatemala" })
       );
-      const inicio = new Date(tempAuth.valid_from);
-      const fin = new Date(tempAuth.valid_to);
+      const start = new Date(tempAuth.valid_from);
+      const end = new Date(tempAuth.valid_to);
 
-      if (ahora < inicio)
-        throw new Error("⏳ QR aún no activo.");
-      if (ahora > fin)
-        throw new Error("⛔ QR expirado.");
+      if (now < start) throw new Error("⏳ QR aún no activo.");
+      if (now > end) throw new Error("⛔ QR expirado.");
 
-      // 3️⃣ Registrar manualmente en guardian_scan_log para el tercero
-      const { error: insertError } = await supabase.from("guardian_scan_log").insert([
-        {
-          token: tempAuth.qr_token,
-          guardian_id: tempAuth.authorized.id_person,
-          child_id: tempAuth.child.id_person,
-          direction: direction, // Usar la dirección seleccionada por el usuario
-          location: "Retiro autorizado",
-          notes: "QR temporal de autorizado",
-        },
-      ]);
-
-      if (insertError) throw insertError;
-
-      setStatus("success");
-      setMessage(
-        `✅ ${tempAuth.authorized.first_name} registró la ${
-          direction === "in" ? "entrada" : "salida"
-        } de ${tempAuth.child.first_name}.`
+      // Registrar escaneo del autorizado
+      await registerLog(
+        tempAuth.authorized.id_person,
+        tempAuth.child.id_person,
+        "QR temporal de tercero autorizado"
       );
-      if (navigator.vibrate) navigator.vibrate(200);
-      resetAfterDelay();
+
+      showSuccessMessage(
+        tempAuth.authorized.first_name,
+        tempAuth.child.first_name
+      );
     } catch (err) {
       console.error("Error:", err.message);
       setStatus("error");
-      setMessage(err.message || "QR inválido o error al registrar.");
+      setMessage(err.message || "QR inválido o error en el registro.");
       setTimeout(() => setStatus("idle"), 4000);
     }
   };
 
+  // ✅ Registrar el evento en guardian_scan_log
+  const registerLog = async (guardian_id, child_id, notes = "") => {
+    const { error } = await supabase.from("guardian_scan_log").insert([
+      {
+        guardian_id,
+        child_id,
+        direction,
+        location: "Entrada principal",
+        notes,
+      },
+    ]);
+
+    if (error) throw error;
+  };
+
+  // ✅ Mostrar mensaje de éxito
+  const showSuccessMessage = (guardianName, childName) => {
+    setStatus("success");
+    setMessage(
+      `✅ ${guardianName} registró la ${
+        direction === "in" ? "entrada" : "salida"
+      } de ${childName}.`
+    );
+    if (navigator.vibrate) navigator.vibrate(200);
+    resetAfterDelay();
+  };
+
+  // 🔄 Restablecer
   const resetAfterDelay = () => {
     setTimeout(() => {
       setStatus("idle");
@@ -162,82 +164,22 @@ export default function ScannerQR() {
     }, 4000);
   };
 
-  // ✅ Obtener cámaras disponibles
+  // 🧠 Iniciar al cargar
   useEffect(() => {
-    Html5Qrcode.getCameras()
-      .then((devices) => {
-        setCameras(devices);
-        if (devices.length > 0) {
-          const defaultCam = devices[0].id;
-          setCameraId(defaultCam);
-          startScanner(defaultCam);
-        }
-      })
-      .catch((err) => {
-        console.error("No se pudieron obtener cámaras:", err);
-        setMessage("No se detectaron cámaras disponibles.");
-      });
-
+    startScanner();
     return () => {
       if (scannerRef.current && isRunningRef.current) {
-        scannerRef.current.stop()
-          .then(() => { isRunningRef.current = false; })
-          .catch(err => {
-            // A veces puede dar error si ya se detuvo, lo ignoramos.
-            if (err.message.includes("not running")) {
-              console.log("El escáner ya estaba detenido.");
-            }
-          });
+        scannerRef.current.stop().then(() => {
+          isRunningRef.current = false;
+        });
       }
     };
   }, []);
 
-  // 🔁 Cambiar cámara
-  const switchCamera = async () => {
-    if (cameras.length < 2) return;
-    const currentIndex = cameras.findIndex((c) => c.id === cameraId);
-    const nextIndex = (currentIndex + 1) % cameras.length;
-    const nextCam = cameras[nextIndex].id;
-
-    if (isRunningRef.current && scannerRef.current) {
-      try {
-        await scannerRef.current.stop();
-        isRunningRef.current = false;
-        document.getElementById(qrRegionId).innerHTML = "";
-      } catch (err) {
-        console.warn("Error al detener la cámara para cambiarla:", err);
-      }
-    }
-    setCameraId(nextCam);
-    startScanner(nextCam);
-  };
-
-  // ↔️ Alternar dirección
+  // ↔️ Alternar entrada/salida
   const toggleDirection = () => {
     setDirection((prev) => (prev === "in" ? "out" : "in"));
   };
-
-  // 📱 Ajustar tamaño del escáner
-  useEffect(() => {
-    const handleResize = () => {
-      const el = document.getElementById(qrRegionId);
-      if (!el) return;
-
-      if (window.innerWidth < 768) {
-        el.style.width = "90vw";
-        el.style.height = "70vw";
-      } else if (window.innerWidth < 1200) {
-        el.style.width = "60vw";
-        el.style.height = "45vw";
-      } else {
-        el.style.width = "400px";
-        el.style.height = "400px";
-      }
-    };
-    window.addEventListener("resize", handleResize);
-    handleResize();
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#F5F5EB] text-[#17637A] p-4">
@@ -245,40 +187,31 @@ export default function ScannerQR() {
         Escáner de Código QR
       </h1>
 
-      {/* 📸 Contenedor del escáner */}
+      {/* 📸 Escáner */}
       <div className="relative flex flex-col items-center w-full">
         <div
           id={qrRegionId}
-          className="border-4 border-[#17637A] rounded-2xl shadow-lg bg-black overflow-hidden flex items-center justify-center mx-auto transition-all duration-300"
+          className="border-4 border-[#17637A] rounded-2xl shadow-lg bg-black overflow-hidden flex items-center justify-center mx-auto"
           style={{ maxWidth: "500px", borderRadius: "1rem" }}
         ></div>
 
-        {/* 🎛️ Botones debajo */}
-        <div className="flex flex-wrap justify-center gap-3 mt-6">
-          <button
-            onClick={switchCamera}
-            disabled={cameras.length < 2}
-            className="flex items-center gap-2 bg-[#17637A] hover:bg-[#145468] text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm md:text-base"
-          >
-            <Camera size={18} />
-            Cambiar cámara
-          </button>
-
+        {/* 🎛️ Botón Entrada/Salida */}
+        <div className="flex justify-center gap-3 mt-6">
           <button
             onClick={toggleDirection}
-            className={`flex items-center gap-2 font-semibold px-5 py-2.5 rounded-xl transition text-sm md:text-base ${
+            className={`flex items-center gap-2 font-semibold px-6 py-3 rounded-xl text-white transition ${
               direction === "in"
-                ? "bg-green-600 hover:bg-green-700 text-white"
-                : "bg-red-600 hover:bg-red-700 text-white"
+                ? "bg-green-600 hover:bg-green-700"
+                : "bg-red-600 hover:bg-red-700"
             }`}
           >
-            {direction === "in" ? <LogIn size={18} /> : <LogOut size={18} />}
+            {direction === "in" ? <LogIn size={20} /> : <LogOut size={20} />}
             {direction === "in" ? "Entrada" : "Salida"}
           </button>
         </div>
       </div>
 
-      {/* 🔄 Estado de carga / éxito / error */}
+      {/* 🔄 Estado */}
       {status === "loading" && (
         <div className="flex flex-col items-center mt-6 text-[#17637A]">
           <Loader2 className="animate-spin w-10 h-10 mb-2" />
@@ -287,14 +220,14 @@ export default function ScannerQR() {
       )}
 
       {status === "success" && (
-        <div className="flex flex-col items-center mt-6 text-green-600 animate-pulse text-center px-4">
+        <div className="flex flex-col items-center mt-6 text-green-600 text-center px-4 animate-pulse">
           <CheckCircle className="w-10 h-10 mb-2" />
           <p className="font-semibold">{message}</p>
         </div>
       )}
 
       {status === "error" && (
-        <div className="flex flex-col items-center mt-6 text-red-600 animate-pulse text-center px-4">
+        <div className="flex flex-col items-center mt-6 text-red-600 text-center px-4 animate-pulse">
           <XCircle className="w-10 h-10 mb-2" />
           <p className="font-semibold">{message}</p>
         </div>
