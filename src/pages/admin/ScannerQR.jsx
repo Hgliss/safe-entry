@@ -22,7 +22,7 @@ export default function ScannerQR() {
     try {
       if (!isRunningRef.current) {
         await scanner.start(
-          { facingMode: "user" }, // Cámara frontal
+          { facingMode: "environment" }, // Cámara frontal
           { fps: 10, qrbox: { width: 320, height: 320 } },
           async (decodedText) => {
             await handleScan(decodedText.trim());
