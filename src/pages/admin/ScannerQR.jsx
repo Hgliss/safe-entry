@@ -13,71 +13,75 @@ export default function ScannerQR() {
   const qrRegionId = "qr-reader";
   const scannerRef = useRef(null);
   const isRunningRef = useRef(false);
-  
-  // ✅ Inicia el escáner
-  useEffect(() => {
-    const html5Qrcode = new Html5Qrcode(qrRegionId);
-    scannerRef.current = html5Qrcode;
 
-    const startScanner = async () => {
-      try {
-        if (!isRunningRef.current) {
-          await html5Qrcode.start(
-            { facingMode: "environment" }, // Cámara trasera
-            { fps: 10, qrbox: { width: 320, height: 320 } },
-            async (decodedText) => {
-              await handleScan(decodedText.trim());
+  // ✅ Inicia escáner con soporte nativo (funciona en Vercel)
+  const startScanner = async () => {
+    const scanner = new Html5Qrcode(qrRegionId);
+    scannerRef.current = scanner;
+
+    try {
+      if (!isRunningRef.current) {
+        await scanner.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: 340,
+            aspectRatio: 1.0,
+            disableFlip: false,
+            experimentalFeatures: {
+              useBarCodeDetectorIfSupported: true, // ✅ Usa el detector nativo del navegador
             },
-            (errorMessage) => { /* ignorar errores de escaneo */ }
-          );
-          isRunningRef.current = true;
-
-          // Ajuste visual del video
-          setTimeout(() => {
-            const video = document.querySelector(`#${qrRegionId} video`);
-            if (video) {
-              video.style.width = "100%";
-              video.style.height = "100%";
-              video.style.objectFit = "cover";
-              video.style.borderRadius = "1rem";
+            videoConstraints: {
+              facingMode: { exact: "environment" },
+              focusMode: "continuous",
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+          },
+          async (decodedText) => {
+            if (decodedText) {
+              console.log("✅ Detectado:", decodedText);
+              await handleScan(decodedText.trim());
             }
-          }, 500);
-        }
-      } catch (err) {
-        console.error("Error al iniciar cámara:", err);
-        setStatus("error");
-        setMessage("No se pudo acceder a la cámara. Verifica permisos.");
+          },
+          (errorMessage) => {
+            // Ignorar errores de frame
+          }
+        );
+
+        isRunningRef.current = true;
+
+        // Ajuste visual del video
+        setTimeout(() => {
+          const video = document.querySelector(`#${qrRegionId} video`);
+          if (video) {
+            video.style.width = "100%";
+            video.style.height = "100%";
+            video.style.objectFit = "cover";
+            video.style.borderRadius = "1rem";
+          }
+        }, 600);
       }
-    };
+    } catch (err) {
+      console.error("Error al iniciar cámara:", err);
+      setStatus("error");
+      setMessage("No se pudo acceder a la cámara o lector del dispositivo.");
+    }
+  };
 
-    startScanner();
-
-    return () => {
-      if (scannerRef.current && isRunningRef.current) {
-        scannerRef.current.stop()
-          .then(() => {
-            isRunningRef.current = false;
-            console.log("Escáner detenido.");
-          })
-          .catch(err => console.error("Error al detener escáner:", err));
-      }
-    };
-  }, []);
-
-  // ✅ Lógica principal del escaneo
+  // ✅ Manejo del escaneo
   const handleScan = async (token) => {
     if (!token || status === "loading" || status === "success" || status === "error") return;
     setStatus("loading");
     setMessage("");
 
-    // ⏸️ Pausar el escáner para evitar lecturas múltiples
+    // Pausa para evitar lecturas múltiples
     if (scannerRef.current && isRunningRef.current) {
       scannerRef.current.pause();
     }
 
-
-    // 🔹 Intenta validar como QR de padre/tutor
-    const validateGuardianQR = async () => {
+    try {
+      // 1️⃣ Intentar validar como QR de padre/tutor
       const { data, error } = await supabase.rpc("scan_guardian_qr", {
         p_token: token,
         p_direction: direction,
@@ -86,18 +90,16 @@ export default function ScannerQR() {
       });
 
       if (error) throw new Error(error.message);
+
       if (data) {
         setLastScan(data);
         await registerLog(data.guardian_id, data.child_id);
         showSuccessMessage(data.guardian_name, data.child_name);
-        return true; // Éxito
+        return;
       }
-      return false; // No encontrado, pero sin error
-    };
 
-    // 🔹 Intenta validar como QR de tercero autorizado
-    const validateThirdPartyQR = async () => {
-      const { data: tempAuth, error } = await supabase
+      // 2️⃣ Intentar validar como QR de tercero autorizado
+      const { data: tempAuth, error: tempError } = await supabase
         .from("child_authorization")
         .select(
           `id_authorization, valid_from, valid_to, status,
@@ -107,15 +109,15 @@ export default function ScannerQR() {
         .eq("qr_token", token)
         .maybeSingle();
 
-      if (error) throw new Error("Error de base de datos al buscar autorización.");
-      if (!tempAuth) return false; // No es un QR de tercero
+      if (tempError) throw new Error("Error al buscar autorización.");
+      if (!tempAuth) throw new Error("QR no válido o no registrado.");
 
       const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Guatemala" }));
       const start = new Date(tempAuth.valid_from);
       const end = new Date(tempAuth.valid_to);
 
       if (now < start) throw new Error("⏳ QR aún no activo.");
-      if (now > end || tempAuth.status === 'expirado') throw new Error("⛔ QR expirado.");
+      if (now > end || tempAuth.status === "expirado") throw new Error("⛔ QR expirado.");
 
       await registerLog(
         tempAuth.authorized.id_person,
@@ -127,35 +129,22 @@ export default function ScannerQR() {
         `${tempAuth.authorized.first_name} ${tempAuth.authorized.first_last_name}`,
         `${tempAuth.child.first_name} ${tempAuth.child.first_last_name}`
       );
-      return true; // Éxito
-    };
-
-    try {
-      // Ejecutar validaciones en orden
-      const isGuardianQR = await validateGuardianQR();
-      if (isGuardianQR) return;
-
-      const isThirdPartyQR = await validateThirdPartyQR();
-      if (isThirdPartyQR) return;
-
-      // Si ninguna validación tuvo éxito
-      throw new Error("QR no válido o no registrado.");
-
     } catch (err) {
       console.error("Error:", err.message);
       setStatus("error");
       setMessage(err.message || "QR inválido o error en el registro.");
       setTimeout(() => setStatus("idle"), 4000);
-    }
-    finally {
-      // ⏯️ Reanudar el escáner después de un retraso, sin importar el resultado
+    } finally {
+      // Reanudar escáner después de 4s
       setTimeout(() => {
-        if (scannerRef.current && isRunningRef.current) scannerRef.current.resume();
+        if (scannerRef.current && isRunningRef.current) {
+          scannerRef.current.resume();
+        }
       }, 4000);
     }
   };
 
-  // ✅ Registrar el evento en guardian_scan_log
+  // ✅ Registrar evento en guardian_scan_log
   const registerLog = async (guardian_id, child_id, notes = "") => {
     const { error } = await supabase.from("guardian_scan_log").insert([
       {
@@ -166,7 +155,6 @@ export default function ScannerQR() {
         notes,
       },
     ]);
-
     if (error) throw error;
   };
 
@@ -182,7 +170,7 @@ export default function ScannerQR() {
     resetAfterDelay();
   };
 
-  // 🔄 Restablecer
+  // 🔁 Restablecer estado
   const resetAfterDelay = () => {
     setTimeout(() => {
       setStatus("idle");
@@ -190,15 +178,23 @@ export default function ScannerQR() {
       setLastScan(null);
     }, 4000);
   };
+
   // ↔️ Alternar entrada/salida
   const toggleDirection = () => {
     setDirection((prev) => (prev === "in" ? "out" : "in"));
   };
 
-  async (decodedText) => {
-  console.log("Detectado:", decodedText);
-  await handleScan(decodedText.trim());
-}
+  // 🧠 Inicia al montar
+  useEffect(() => {
+    startScanner();
+    return () => {
+      if (scannerRef.current && isRunningRef.current) {
+        scannerRef.current.stop().then(() => {
+          isRunningRef.current = false;
+        });
+      }
+    };
+  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#F5F5EB] text-[#17637A] p-4">
@@ -210,8 +206,8 @@ export default function ScannerQR() {
       <div className="relative flex flex-col items-center w-full">
         <div
           id={qrRegionId}
-          className="border-4 border-[#17637A] rounded-2xl shadow-lg bg-black overflow-hidden flex items-center justify-center mx-auto"
-          style={{ maxWidth: "500px", borderRadius: "1rem" }}
+          className="border-4 border-dashed border-[#17637A] rounded-2xl shadow-lg bg-black overflow-hidden flex items-center justify-center mx-auto"
+          style={{ width: "340px", height: "340px", borderRadius: "1rem" }}
         ></div>
 
         {/* 🎛️ Botón Entrada/Salida */}
