@@ -13,20 +13,21 @@ export default function ScannerQR() {
   const qrRegionId = "qr-reader";
   const scannerRef = useRef(null);
   const isRunningRef = useRef(false);
-
-  // ✅ Inicia escáner con cámara frontal
-  const startScanner = async () => {
-    const scanner = new Html5Qrcode(qrRegionId);
-    scannerRef.current = scanner;
-
+  
+  // ✅ Inicia el escáner
+  useEffect(() => {
+    const html5Qrcode = new Html5Qrcode(qrRegionId);
+    scannerRef.current = html5Qrcode;
+    
     try {
       if (!isRunningRef.current) {
-        await scanner.start(
-          { facingMode: "environment" }, // Cámara frontal
+        html5Qrcode.start(
+          { facingMode: "environment" }, // Cámara trasera
           { fps: 10, qrbox: { width: 320, height: 320 } },
           async (decodedText) => {
             await handleScan(decodedText.trim());
-          }
+          },
+          (errorMessage) => { /* ignorar errores de escaneo */ }
         );
         isRunningRef.current = true;
 
@@ -46,11 +47,22 @@ export default function ScannerQR() {
       setStatus("error");
       setMessage("No se pudo acceder a la cámara. Verifica permisos.");
     }
-  };
+
+    return () => {
+      if (scannerRef.current && isRunningRef.current) {
+        scannerRef.current.stop()
+          .then(() => {
+            isRunningRef.current = false;
+            console.log("Escáner detenido.");
+          })
+          .catch(err => console.error("Error al detener escáner:", err));
+      }
+    };
+  }, []);
 
   // ✅ Lógica principal del escaneo
   const handleScan = async (token) => {
-    if (!token || status === "loading") return;
+    if (!token || status === "loading" || status === "success" || status === "error") return;
     setStatus("loading");
     setMessage("");
 
@@ -163,19 +175,6 @@ export default function ScannerQR() {
       setLastScan(null);
     }, 4000);
   };
-
-  // 🧠 Iniciar al cargar
-  useEffect(() => {
-    startScanner();
-    return () => {
-      if (scannerRef.current && isRunningRef.current) {
-        scannerRef.current.stop().then(() => {
-          isRunningRef.current = false;
-        });
-      }
-    };
-  }, []);
-
   // ↔️ Alternar entrada/salida
   const toggleDirection = () => {
     setDirection((prev) => (prev === "in" ? "out" : "in"));
