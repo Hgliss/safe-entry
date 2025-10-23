@@ -14,68 +14,13 @@ export default function ScannerQR() {
   const scannerRef = useRef(null);
   const isRunningRef = useRef(false);
 
-  // ✅ Inicia escáner con soporte nativo (funciona en Vercel)
-  const startScanner = async () => {
-    const scanner = new Html5Qrcode(qrRegionId);
-    scannerRef.current = scanner;
-
-    try {
-      if (!isRunningRef.current) {
-        await scanner.start(
-          { facingMode: "environment" },
-          {
-            fps: 10,
-            qrbox: 340,
-            aspectRatio: 1.0,
-            disableFlip: false,
-            experimentalFeatures: {
-              useBarCodeDetectorIfSupported: true, // ✅ Usa el detector nativo del navegador
-            },
-            videoConstraints: {
-              facingMode: { exact: "environment" },
-              focusMode: "continuous",
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
-          },
-          async (decodedText) => {
-            if (decodedText) {
-              console.log("✅ Detectado:", decodedText);
-              await handleScan(decodedText.trim());
-            }
-          },
-          (errorMessage) => {
-            // Ignorar errores de frame
-          }
-        );
-
-        isRunningRef.current = true;
-
-        // Ajuste visual del video
-        setTimeout(() => {
-          const video = document.querySelector(`#${qrRegionId} video`);
-          if (video) {
-            video.style.width = "100%";
-            video.style.height = "100%";
-            video.style.objectFit = "cover";
-            video.style.borderRadius = "1rem";
-          }
-        }, 600);
-      }
-    } catch (err) {
-      console.error("Error al iniciar cámara:", err);
-      setStatus("error");
-      setMessage("No se pudo acceder a la cámara o lector del dispositivo.");
-    }
-  };
-
   // ✅ Manejo del escaneo
   const handleScan = async (token) => {
     if (!token || status === "loading" || status === "success" || status === "error") return;
     setStatus("loading");
     setMessage("");
 
-    // Pausa para evitar lecturas múltiples
+    // ⏸️ Pausa para evitar lecturas múltiples
     if (scannerRef.current && isRunningRef.current) {
       scannerRef.current.pause();
     }
@@ -136,7 +81,7 @@ export default function ScannerQR() {
       setTimeout(() => setStatus("idle"), 4000);
     } finally {
       // Reanudar escáner después de 4s
-      setTimeout(() => {
+      setTimeout(() => { 
         if (scannerRef.current && isRunningRef.current) {
           scannerRef.current.resume();
         }
@@ -185,13 +130,51 @@ export default function ScannerQR() {
   };
 
   // 🧠 Inicia al montar
-  useEffect(() => {
+  useEffect(() => { 
+    // 1. Crear instancia del escáner
+    const scanner = new Html5Qrcode(qrRegionId);
+    scannerRef.current = scanner;
+
+    // 2. Función para iniciar el escáner
+    const startScanner = async () => {
+      try {
+        if (!isRunningRef.current) {
+          await scanner.start(
+            { facingMode: "environment" }, // Cámara trasera
+            {
+              fps: 10,
+              qrbox: { width: 250, height: 250 },
+            },
+            async (decodedText) => {
+              await handleScan(decodedText.trim());
+            },
+            (errorMessage) => { /* Ignorar errores de no detección */ }
+          );
+          isRunningRef.current = true;
+
+          // Ajuste visual del video
+          const video = document.querySelector(`#${qrRegionId} video`);
+          if (video) {
+            video.style.objectFit = "cover";
+            video.style.borderRadius = "1rem";
+          }
+        }
+      } catch (err) {
+        console.error("Error al iniciar cámara:", err);
+        setStatus("error");
+        setMessage("No se pudo acceder a la cámara. Verifica los permisos.");
+      }
+    };
+
     startScanner();
+
+    // 3. Limpieza al desmontar el componente
     return () => {
-      if (scannerRef.current && isRunningRef.current) {
-        scannerRef.current.stop().then(() => {
+      if (scannerRef.current?.getState() === 2 /* SCANNING */) {
+        scannerRef.current.stop().then(() => { 
           isRunningRef.current = false;
-        });
+          console.log("Escáner detenido correctamente.");
+        }).catch(err => console.error("Error al detener escáner:", err));
       }
     };
   }, []);
