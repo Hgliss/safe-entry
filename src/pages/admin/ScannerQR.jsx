@@ -70,62 +70,47 @@ export default function ScannerQR() {
     setStatus("loading");
     setMessage("");
 
-    try {
-      // 1️⃣ Intentar validar con QR del padre
-      const { data: parentResult, error: parentError } = await supabase.rpc(
-        "scan_guardian_qr",
-        {
-          p_token: token,
-          p_direction: direction,
-          p_scanned_by: user?.id_user,
-          p_location: "Entrada principal",
-        }
-      );
+    // 🔹 Intenta validar como QR de padre/tutor
+    const validateGuardianQR = async () => {
+      const { data, error } = await supabase.rpc("scan_guardian_qr", {
+        p_token: token,
+        p_direction: direction,
+        p_scanned_by: user?.id_user,
+        p_location: "Entrada principal",
+      });
 
-      if (!parentError && parentResult) {
-        setLastScan(parentResult);
-        await registerLog(parentResult.guardian_id, parentResult.child_id);
-        showSuccessMessage(parentResult.guardian_name, parentResult.child_name);
-        return;
+      if (error) throw new Error(error.message);
+      if (data) {
+        setLastScan(data);
+        await registerLog(data.guardian_id, data.child_id);
+        showSuccessMessage(data.guardian_name, data.child_name);
+        return true; // Éxito
       }
+      return false; // No encontrado, pero sin error
+    };
 
-      // 2️⃣ Intentar con QR de tercero autorizado
-      const { data: tempAuth } = await supabase
+    // 🔹 Intenta validar como QR de tercero autorizado
+    const validateThirdPartyQR = async () => {
+      const { data: tempAuth, error } = await supabase
         .from("child_authorization")
         .select(
-          `
-          id_authorization,
-          qr_token,
-          valid_from,
-          valid_to,
-          status,
-          child:child_id (
-            id_person,
-            first_name,
-            first_last_name
-          ),
-          authorized:authorized_person_id (
-            id_person,
-            first_name,
-            first_last_name
-          )
-        `
+          `id_authorization, valid_from, valid_to, status,
+           child:child_id(id_person, first_name, first_last_name),
+           authorized:authorized_person_id(id_person, first_name, first_last_name)`
         )
         .eq("qr_token", token)
         .maybeSingle();
 
-      if (!tempAuth) throw new Error("QR no válido o no registrado.");
+      if (error) throw new Error("Error de base de datos al buscar autorización.");
+      if (!tempAuth) return false; // No es un QR de tercero
 
-      const now = new Date(
-        new Date().toLocaleString("en-US", { timeZone: "America/Guatemala" })
-      );
+      const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Guatemala" }));
       const start = new Date(tempAuth.valid_from);
       const end = new Date(tempAuth.valid_to);
 
       if (now < start) throw new Error("⏳ QR aún no activo.");
-      if (now > end) throw new Error("⛔ QR expirado.");
+      if (now > end || tempAuth.status === 'expirado') throw new Error("⛔ QR expirado.");
 
-      // Registrar escaneo del autorizado
       await registerLog(
         tempAuth.authorized.id_person,
         tempAuth.child.id_person,
@@ -133,9 +118,23 @@ export default function ScannerQR() {
       );
 
       showSuccessMessage(
-        tempAuth.authorized.first_name,
-        tempAuth.child.first_name
+        `${tempAuth.authorized.first_name} ${tempAuth.authorized.first_last_name}`,
+        `${tempAuth.child.first_name} ${tempAuth.child.first_last_name}`
       );
+      return true; // Éxito
+    };
+
+    try {
+      // Ejecutar validaciones en orden
+      const isGuardianQR = await validateGuardianQR();
+      if (isGuardianQR) return;
+
+      const isThirdPartyQR = await validateThirdPartyQR();
+      if (isThirdPartyQR) return;
+
+      // Si ninguna validación tuvo éxito
+      throw new Error("QR no válido o no registrado.");
+
     } catch (err) {
       console.error("Error:", err.message);
       setStatus("error");
@@ -165,7 +164,7 @@ export default function ScannerQR() {
     setMessage(
       `✅ ${guardianName} registró la ${
         direction === "in" ? "entrada" : "salida"
-      } de ${childName}.`
+      } de ${childName}`
     );
     if (navigator.vibrate) navigator.vibrate(200);
     resetAfterDelay();
