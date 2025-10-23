@@ -10,20 +10,19 @@ export default function ScannerQR() {
   const [direction, setDirection] = useState("in");
   const [lastScan, setLastScan] = useState(null);
   const user = useAuthStore((state) => state.user);
+  const [isScanning, setIsScanning] = useState(true); // ⬅️ Nuevo estado para controlar el escaneo
   const qrRegionId = "qr-reader";
   const scannerRef = useRef(null);
   const isRunningRef = useRef(false);
 
   // ✅ Manejo del escaneo
   const handleScan = async (token) => {
-    if (!token || status === "loading" || status === "success" || status === "error") return;
+    // Solo procesar si estamos en modo escaneo y el token es válido
+    if (!token || !isScanning) return;
+
+    setIsScanning(false); // 🛑 Detener nuevos escaneos inmediatamente
     setStatus("loading");
     setMessage("");
-
-    // ⏸️ Pausa para evitar lecturas múltiples
-    if (scannerRef.current && isRunningRef.current) {
-      scannerRef.current.pause();
-    }
 
     try {
       // 1️⃣ Intentar validar como QR de padre/tutor
@@ -78,14 +77,12 @@ export default function ScannerQR() {
       console.error("Error:", err.message);
       setStatus("error");
       setMessage(err.message || "QR inválido o error en el registro.");
-      setTimeout(() => setStatus("idle"), 4000);
     } finally {
-      // Reanudar escáner después de 4s
-      setTimeout(() => { 
-        if (scannerRef.current && isRunningRef.current) {
-          scannerRef.current.resume();
-        }
-      }, 4000);
+      // Después de 4 segundos, reactivar el escaneo para el siguiente QR
+      setTimeout(() => {
+        setIsScanning(true);
+        setStatus("idle");
+      }, 4000); // Este tiempo debe coincidir con el de resetAfterDelay
     }
   };
 
@@ -113,15 +110,6 @@ export default function ScannerQR() {
     );
     if (navigator.vibrate) navigator.vibrate(200);
     resetAfterDelay();
-  };
-
-  // 🔁 Restablecer estado
-  const resetAfterDelay = () => {
-    setTimeout(() => {
-      setStatus("idle");
-      setMessage("");
-      setLastScan(null);
-    }, 4000);
   };
 
   // ↔️ Alternar entrada/salida
