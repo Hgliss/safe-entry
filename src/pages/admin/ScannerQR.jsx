@@ -195,6 +195,11 @@ export default function ScannerQR() {
     setDirection((prev) => (prev === "in" ? "out" : "in"));
   };
 
+  async (decodedText) => {
+  console.log("Detectado:", decodedText);
+  await handleScan(decodedText.trim());
+}
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#F5F5EB] text-[#17637A] p-4">
       <h1 className="text-3xl md:text-4xl font-bold mb-6 text-center">
