@@ -18,35 +18,39 @@ export default function ScannerQR() {
   useEffect(() => {
     const html5Qrcode = new Html5Qrcode(qrRegionId);
     scannerRef.current = html5Qrcode;
-    
-    try {
-      if (!isRunningRef.current) {
-        html5Qrcode.start(
-          { facingMode: "environment" }, // Cámara trasera
-          { fps: 10, qrbox: { width: 320, height: 320 } },
-          async (decodedText) => {
-            await handleScan(decodedText.trim());
-          },
-          (errorMessage) => { /* ignorar errores de escaneo */ }
-        );
-        isRunningRef.current = true;
 
-        // Ajuste visual del video
-        setTimeout(() => {
-          const video = document.querySelector(`#${qrRegionId} video`);
-          if (video) {
-            video.style.width = "100%";
-            video.style.height = "100%";
-            video.style.objectFit = "cover";
-            video.style.borderRadius = "1rem";
-          }
-        }, 500);
+    const startScanner = async () => {
+      try {
+        if (!isRunningRef.current) {
+          await html5Qrcode.start(
+            { facingMode: "environment" }, // Cámara trasera
+            { fps: 10, qrbox: { width: 320, height: 320 } },
+            async (decodedText) => {
+              await handleScan(decodedText.trim());
+            },
+            (errorMessage) => { /* ignorar errores de escaneo */ }
+          );
+          isRunningRef.current = true;
+
+          // Ajuste visual del video
+          setTimeout(() => {
+            const video = document.querySelector(`#${qrRegionId} video`);
+            if (video) {
+              video.style.width = "100%";
+              video.style.height = "100%";
+              video.style.objectFit = "cover";
+              video.style.borderRadius = "1rem";
+            }
+          }, 500);
+        }
+      } catch (err) {
+        console.error("Error al iniciar cámara:", err);
+        setStatus("error");
+        setMessage("No se pudo acceder a la cámara. Verifica permisos.");
       }
-    } catch (err) {
-      console.error("Error al iniciar cámara:", err);
-      setStatus("error");
-      setMessage("No se pudo acceder a la cámara. Verifica permisos.");
-    }
+    };
+
+    startScanner();
 
     return () => {
       if (scannerRef.current && isRunningRef.current) {
