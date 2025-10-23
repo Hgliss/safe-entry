@@ -25,12 +25,13 @@ export default function ScannerQR() {
     setMessage("");
 
     try {
+      const validDirection = direction === "in" ? "in" : "out";
       // 1️⃣ Intentar validar como QR de padre/tutor
       const { data, error } = await supabase.rpc("scan_guardian_qr", {
-        p_token: token,
-        p_direction: direction,
-        p_scanned_by: user?.id_user,
-        p_location: "Entrada principal",
+        p_token: token, // El token del QR
+        p_direction: validDirection,
+        p_scanned_by: user?.id_user, // El ID del usuario que escanea
+        p_location: "Entrada principal", // La ubicación del escaneo
       });
 
       if (error) throw new Error(error.message);
