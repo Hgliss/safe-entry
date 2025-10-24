@@ -1,224 +1,287 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { supabase } from "../../api/supabaseClient";
-import { useAuthStore } from "../../store/useAuthStore";
-import { CheckCircle, XCircle, Loader2, LogIn, LogOut } from "lucide-react";
 
 export default function ScannerQR() {
-  const [status, setStatus] = useState("idle");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState("Selecciona un modo para comenzar");
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanResult, setScanResult] = useState(null);
   const [direction, setDirection] = useState("in");
-  const [lastScan, setLastScan] = useState(null);
-  const user = useAuthStore((state) => state.user);
-  const [isScanning, setIsScanning] = useState(true); // ⬅️ Nuevo estado para controlar el escaneo
-  const qrRegionId = "qr-reader";
+
   const scannerRef = useRef(null);
-  const isRunningRef = useRef(false);
+  const qrReaderRef = useRef(null);
 
-  // ✅ Manejo del escaneo
-  const handleScan = async (token) => {
-    // Solo procesar si estamos en modo escaneo y el token es válido
-    if (!token || !isScanning) return;
+  // 🧩 Inicializar escáner
+  useEffect(() => {
+    const startScanner = async () => {
+      if (!qrReaderRef.current) return;
 
-    setIsScanning(false); // 🛑 Detener nuevos escaneos inmediatamente
-    setStatus("loading");
-    setMessage("");
+      try {
+        const html5QrCode = new Html5Qrcode(qrReaderRef.current.id);
+        scannerRef.current = html5QrCode;
 
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras && cameras.length) {
+          setIsScanning(true);
+          setMessage(`Escaneando ${direction === "in" ? "entrada" : "salida"}...`);
+          await html5QrCode.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: 250 },
+            onScanSuccess,
+            onScanFailure
+          );
+        } else {
+          setMessage("No se detectó cámara disponible.");
+        }
+      } catch (error) {
+        console.error("Error al iniciar el escáner:", error);
+        setMessage("⚠️ Error al iniciar el escáner.");
+      }
+    };
+
+    const timer = setTimeout(() => startScanner(), 200);
+    return () => {
+      clearTimeout(timer);
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
+      }
+    };
+  }, [direction]);
+
+  // ✅ Lectura exitosa del QR
+  const onScanSuccess = async (decodedText) => {
+    if (scannerRef.current) {
+      await scannerRef.current.stop();
+      setIsScanning(false);
+    }
+
+    const token = decodedText.trim();
+    console.log("🔍 Token detectado:", token);
+    setMessage("Validando código...");
+
+    await validarQR(token);
+  };
+
+  const onScanFailure = () => {};
+
+  // 🧠 Validar QR de padre o tercero autorizado
+  const validarQR = async (token) => {
     try {
-      const validDirection = direction === "in" ? "in" : "out";
-      // 1️⃣ Intentar validar como QR de padre/tutor
-      const { data, error } = await supabase.rpc("scan_guardian_qr", {
-        p_token: token, // El token del QR
-        p_direction: validDirection,
-        p_scanned_by: user?.id_user, // El ID del usuario que escanea
-        p_location: "Entrada principal", // La ubicación del escaneo
-      });
+      // 1️⃣ Buscar QR del padre o tutor
+      const { data: qrPadre } = await supabase
+        .from("guardian_child_qr")
+        .select(`
+          id,
+          token,
+          status,
+          guardian:guardian_id (
+            id_person,
+            first_name,
+            first_last_name
+          ),
+          child:child_id (
+            id_person,
+            first_name,
+            first_last_name
+          )
+        `)
+        .eq("token", token)
+        .maybeSingle();
 
-      if (error) throw new Error(error.message);
+      if (qrPadre && qrPadre.status === "active") {
+        await registrarEvento({
+          token,
+          guardian_id: qrPadre.guardian.id_person,
+          child_id: qrPadre.child.id_person,
+        });
 
-      if (data) {
-        setLastScan(data);
-        await registerLog(data.guardian_id, data.child_id);
-        showSuccessMessage(data.guardian_name, data.child_name);
+        setMessage(`✅ ${direction === "in" ? "Entrada" : "Salida"} del padre registrada`);
+        setScanResult({
+          estado: "válido",
+          color: "green",
+          tipo: "padre",
+          info: qrPadre,
+        });
         return;
       }
 
-      // 2️⃣ Intentar validar como QR de tercero autorizado
-      const { data: tempAuth, error: tempError } = await supabase
+      // 2️⃣ Buscar QR del tercero autorizado
+      const { data: qrTercero } = await supabase
         .from("child_authorization")
-        .select(
-          `id_authorization, valid_from, valid_to, status,
-           child:child_id(id_person, first_name, first_last_name),
-           authorized:authorized_person_id(id_person, first_name, first_last_name)`
-        )
+        .select(`
+          id_authorization,
+          qr_token,
+          valid_from,
+          valid_to,
+          status,
+          authorized:authorized_person_id (
+            id_person,
+            first_name,
+            first_last_name
+          ),
+          child:child_id (
+            id_person,
+            first_name,
+            first_last_name
+          )
+        `)
         .eq("qr_token", token)
         .maybeSingle();
 
-      if (tempError) throw new Error("Error al buscar autorización.");
-      if (!tempAuth) throw new Error("QR no válido o no registrado.");
+      if (qrTercero && qrTercero.status === "active") {
+        const ahora = new Date();
+        const inicio = new Date(qrTercero.valid_from);
+        const fin = new Date(qrTercero.valid_to);
 
-      const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Guatemala" }));
-      const start = new Date(tempAuth.valid_from);
-      const end = new Date(tempAuth.valid_to);
+        if (ahora < inicio) {
+          setMessage("⏳ Este QR aún no está activo.");
+          setScanResult({ estado: "pendiente", color: "orange", tipo: "tercero" });
+          return;
+        }
 
-      if (now < start) throw new Error("⏳ QR aún no activo.");
-      if (now > end || tempAuth.status === "expirado") throw new Error("⛔ QR expirado.");
+        if (ahora > fin) {
+          await supabase
+            .from("child_authorization")
+            .update({ status: "expired" })
+            .eq("id_authorization", qrTercero.id_authorization);
 
-      await registerLog(
-        tempAuth.authorized.id_person,
-        tempAuth.child.id_person,
-        "QR temporal de tercero autorizado"
-      );
+          setMessage("⛔ Este QR ha expirado.");
+          setScanResult({ estado: "expirado", color: "gray", tipo: "tercero" });
+          return;
+        }
 
-      showSuccessMessage(
-        `${tempAuth.authorized.first_name} ${tempAuth.authorized.first_last_name}`,
-        `${tempAuth.child.first_name} ${tempAuth.child.first_last_name}`
-      );
+        await registrarEvento({
+          token,
+          guardian_id: qrTercero.authorized.id_person,
+          child_id: qrTercero.child.id_person,
+        });
+
+        setMessage(`✅ ${direction === "in" ? "Entrada" : "Salida"} del tercero registrada`);
+        setScanResult({
+          estado: "válido",
+          color: "green",
+          tipo: "tercero",
+          info: qrTercero,
+        });
+        return;
+      }
+
+      // 3️⃣ Si no se encontró el QR en ninguna tabla
+      setMessage("❌ QR no reconocido.");
+      setScanResult({ estado: "inválido", color: "red" });
     } catch (err) {
-      console.error("Error:", err.message);
-      setStatus("error");
-      setMessage(err.message || "QR inválido o error en el registro.");
-    } finally {
-      // Después de 4 segundos, reactivar el escaneo para el siguiente QR
-      setTimeout(() => {
-        setIsScanning(true);
-        setStatus("idle");
-      }, 4000); // Este tiempo debe coincidir con el de resetAfterDelay
+      console.error("⚠️ Error al validar el código:", err);
+      setMessage("⚠️ Error al validar el código.");
+      setScanResult({ estado: "error", color: "red" });
     }
   };
 
-  // ✅ Registrar evento en guardian_scan_log
-  const registerLog = async (guardian_id, child_id, notes = "") => {
-    const { error } = await supabase.from("guardian_scan_log").insert([
-      {
-        guardian_id,
-        child_id,
-        direction,
-        location: "Entrada principal",
-        notes,
-      },
-    ]);
-    if (error) throw error;
+  // 🪶 Registrar evento en guardian_scan_log
+  const registrarEvento = async ({ token, guardian_id, child_id }) => {
+    // Asignar la ubicación según el modo
+    const location = direction === "in" ? "Entrada principal" : "Salida principal";
+
+    const entry = {
+      token,
+      guardian_id,
+      child_id,
+      direction,
+      location,
+      scanned_at: new Date().toISOString(),
+      status: "active",
+    };
+
+    const { error } = await supabase.from("guardian_scan_log").insert([entry]);
+    if (error) console.error("Error registrando evento:", error);
   };
 
-  // ✅ Mostrar mensaje de éxito
-  const showSuccessMessage = (guardianName, childName) => {
-    setStatus("success");
-    setMessage(
-      `✅ ${guardianName} registró la ${
-        direction === "in" ? "entrada" : "salida"
-      } de ${childName}`
-    );
-    if (navigator.vibrate) navigator.vibrate(200);
-    resetAfterDelay();
-  };
-
-  // ↔️ Alternar entrada/salida
+  // 🔁 Alternar modo Entrada / Salida
   const toggleDirection = () => {
     setDirection((prev) => (prev === "in" ? "out" : "in"));
+    setMessage("Cambiando modo...");
+    setScanResult(null);
   };
 
-  // 🧠 Inicia al montar
-  useEffect(() => { 
-    // 1. Crear instancia del escáner
-    const scanner = new Html5Qrcode(qrRegionId);
-    scannerRef.current = scanner;
-
-    // 2. Función para iniciar el escáner
-    const startScanner = async () => {
+  // ♻️ Reanudar escaneo manualmente
+  const reiniciarEscaneo = async () => {
+    if (scannerRef.current) {
       try {
-        if (!isRunningRef.current) {
-          await scanner.start(
-            { facingMode: "environment" }, // Cámara trasera
-            {
-              fps: 10,
-              qrbox: { width: 250, height: 250 },
-            },
-            async (decodedText) => {
-              await handleScan(decodedText.trim());
-            },
-            (errorMessage) => { /* Ignorar errores de no detección */ }
-          );
-          isRunningRef.current = true;
-
-          // Ajuste visual del video
-          const video = document.querySelector(`#${qrRegionId} video`);
-          if (video) {
-            video.style.objectFit = "cover";
-            video.style.borderRadius = "1rem";
-          }
-        }
-      } catch (err) {
-        console.error("Error al iniciar cámara:", err);
-        setStatus("error");
-        setMessage("No se pudo acceder a la cámara. Verifica los permisos.");
+        await scannerRef.current.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: 250 },
+          onScanSuccess,
+          onScanFailure
+        );
+        setIsScanning(true);
+        setMessage(`Escaneando ${direction === "in" ? "entrada" : "salida"}...`);
+        setScanResult(null);
+      } catch (error) {
+        console.error("Error al reanudar el escaneo:", error);
+        setMessage("No se pudo reiniciar el escáner.");
       }
-    };
-
-    startScanner();
-
-    // 3. Limpieza al desmontar el componente
-    return () => {
-      if (scannerRef.current?.getState() === 2 /* SCANNING */) {
-        scannerRef.current.stop().then(() => { 
-          isRunningRef.current = false;
-          console.log("Escáner detenido correctamente.");
-        }).catch(err => console.error("Error al detener escáner:", err));
-      }
-    };
-  }, []);
+    }
+  };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-[#F5F5EB] text-[#17637A] p-4">
-      <h1 className="text-3xl md:text-4xl font-bold mb-6 text-center">
-        Escáner de Código QR
-      </h1>
+    <div className="min-h-screen bg-[#ECEFF1] flex flex-col items-center justify-center p-6">
+      <div className="bg-white shadow-lg rounded-2xl p-6 w-full max-w-md text-center">
+        <h1 className="text-2xl font-semibold text-[#17637A] mb-4">
+          Escáner de códigos QR
+        </h1>
 
-      {/* 📸 Escáner */}
-      <div className="relative flex flex-col items-center w-full">
+        <button
+          onClick={toggleDirection}
+          className={`mb-4 px-4 py-2 rounded-lg text-white font-medium transition-colors ${
+            direction === "in"
+              ? "bg-green-600 hover:bg-green-700"
+              : "bg-red-600 hover:bg-red-700"
+          }`}
+        >
+          {direction === "in" ? "🔼 Modo: Entrada" : "🔽 Modo: Salida"}
+        </button>
+
         <div
-          id={qrRegionId}
-          className="border-4 border-dashed border-[#17637A] rounded-2xl shadow-lg bg-black overflow-hidden flex items-center justify-center mx-auto"
-          style={{ width: "340px", height: "340px", borderRadius: "1rem" }}
+          id="qr-reader"
+          ref={qrReaderRef}
+          className="border-2 border-[#17637A] rounded-lg mb-4 w-full"
+          style={{ width: "100%", height: "280px" }}
         ></div>
 
-        {/* 🎛️ Botón Entrada/Salida */}
-        <div className="flex justify-center gap-3 mt-6">
-          <button
-            onClick={toggleDirection}
-            className={`flex items-center gap-2 font-semibold px-6 py-3 rounded-xl text-white transition ${
-              direction === "in"
-                ? "bg-green-600 hover:bg-green-700"
-                : "bg-red-600 hover:bg-red-700"
+        <p className="text-gray-700 mb-3">{message}</p>
+
+        {scanResult && (
+          <div
+            className={`p-4 rounded-xl border-2 mt-4 ${
+              scanResult.color === "green"
+                ? "border-green-500 bg-green-100"
+                : scanResult.color === "red"
+                ? "border-red-500 bg-red-100"
+                : scanResult.color === "gray"
+                ? "border-gray-500 bg-gray-100"
+                : "border-yellow-500 bg-yellow-100"
             }`}
           >
-            {direction === "in" ? <LogIn size={20} /> : <LogOut size={20} />}
-            {direction === "in" ? "Entrada" : "Salida"}
+            <h2 className="text-lg font-semibold">
+              {scanResult.estado === "válido"
+                ? `✅ ${scanResult.tipo === "padre" ? "QR Padre" : "QR Tercero"} válido`
+                : scanResult.estado === "expirado"
+                ? "⛔ QR expirado"
+                : scanResult.estado === "pendiente"
+                ? "⏳ QR aún no activo"
+                : "❌ QR inválido"}
+            </h2>
+          </div>
+        )}
+
+        {!isScanning && (
+          <button
+            onClick={reiniciarEscaneo}
+            className="mt-6 bg-[#17637A] text-white px-4 py-2 rounded-lg hover:bg-[#145665]"
+          >
+            🔄 Reanudar escaneo
           </button>
-        </div>
+        )}
       </div>
-
-      {/* 🔄 Estado */}
-      {status === "loading" && (
-        <div className="flex flex-col items-center mt-6 text-[#17637A]">
-          <Loader2 className="animate-spin w-10 h-10 mb-2" />
-          <p>Procesando escaneo...</p>
-        </div>
-      )}
-
-      {status === "success" && (
-        <div className="flex flex-col items-center mt-6 text-green-600 text-center px-4 animate-pulse">
-          <CheckCircle className="w-10 h-10 mb-2" />
-          <p className="font-semibold">{message}</p>
-        </div>
-      )}
-
-      {status === "error" && (
-        <div className="flex flex-col items-center mt-6 text-red-600 text-center px-4 animate-pulse">
-          <XCircle className="w-10 h-10 mb-2" />
-          <p className="font-semibold">{message}</p>
-        </div>
-      )}
     </div>
   );
 }
