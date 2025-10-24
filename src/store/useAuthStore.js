@@ -18,7 +18,7 @@ export const useAuthStore = create(
         set({ user, session });
 
         if (user) {
-          await get().fetchRole();
+          await get().fetchRole(true); // 👈 Forzamos la actualización del rol
         } else {
           set({ role: null, error: null });
         }
@@ -51,8 +51,8 @@ export const useAuthStore = create(
       },
 
       // Obtiene rol vía RPC
-      fetchRole: async () => {
-        if (get().role) return;
+      fetchRole: async (force = false) => {
+        if (get().role && !force) return; // 👈 Solo se salta si no se fuerza
         const { data, error } = await supabase.rpc("get_user_role");
         if (error) {
           console.error("Error al obtener el rol:", error.message);

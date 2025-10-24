@@ -15,7 +15,7 @@ import { useAuthStore } from "../store/useAuthStore";
 export default function PadresLayout(){
     const [isOpen, setIsOpen] = useState(false);
     const location = useLocation();
-    const logout = useAuthStore((state) => state.logout);
+    const logoutUser = useAuthStore((state) => state.logoutUser);
     
     const handleLogout = async () => {
         logoutUser();
