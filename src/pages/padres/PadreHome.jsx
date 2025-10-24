@@ -1,34 +1,43 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../../api/supabaseClient";
 import { QrCode, History, Bell, Info } from "lucide-react";
+import { useAuthStore } from "../../store/useAuthStore";
+import { useNotifications } from "../../hooks/useNotifications";
 
 export default function PadreHome() {
   const [registros, setRegistros] = useState([]);
   const [notificaciones, setNotificaciones] = useState([]);
   const [loading, setLoading] = useState(true);
+  const user = useAuthStore((s) => s.user);
 
+  // ✅ Hook de notificaciones en tiempo real (no dentro de useEffect)
+  useNotifications(user?.id);
+
+  // 🔹 Cargar registros y notificaciones del padre
   useEffect(() => {
     const fetchData = async () => {
       try {
         const {
-          data: { user },
+          data: { user: sessionUser },
         } = await supabase.auth.getUser();
 
-        if (!user) return;
+        if (!sessionUser) return;
 
         // Obtener person_id del padre
-        const { data: userData } = await supabase
+        const { data: userData, error: userError } = await supabase
           .from("app_user")
           .select("person_id")
-          .eq("auth_user_id", user.id)
+          .eq("auth_user_id", sessionUser.id)
           .single();
 
-        const guardianId = userData.person_id;
+        if (userError) throw userError;
+        const guardianId = userData?.person_id;
 
-        // 🔹 Últimos registros (entradas/salidas)
-        const { data: scanData } = await supabase
+        // 🔹 Últimos registros de entradas/salidas
+        const { data: scanData, error: scanError } = await supabase
           .from("guardian_scan_log")
-          .select(`
+          .select(
+            `
             id,
             direction,
             scanned_at,
@@ -36,37 +45,61 @@ export default function PadreHome() {
               first_name,
               first_last_name
             )
-          `)
+          `
+          )
           .eq("guardian_id", guardianId)
           .order("scanned_at", { ascending: false })
           .limit(5);
 
-        // 🔹 Últimas notificaciones (puedes reemplazar con tu tabla real)
-        const mockNotifications = [
-          {
-            id: 1,
-            message: "Entrada registrada correctamente de Lisbeth Hernández",
-            time: "Hace 2 horas",
-          },
-          {
-            id: 2,
-            message: "Recuerda revisar el horario de salida de tus hijos",
-            time: "Hoy a las 7:00 AM",
-          },
-        ];
+        if (scanError) throw scanError;
+
+        // 🔹 Últimas notificaciones desde la tabla real
+        const { data: notifData, error: notifError } = await supabase
+          .from("notifications")
+          .select("id, title, message, created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (notifError) throw notifError;
 
         setRegistros(scanData || []);
-        setNotificaciones(mockNotifications);
+        setNotificaciones(notifData || []);
       } catch (error) {
-        console.error("Error al cargar datos:", error);
+        console.error("❌ Error al cargar datos del padre:", error);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, []);
 
+    // 🧩 Suscribirse en tiempo real a nuevas notificaciones
+    if (user?.id) {
+      const channel = supabase
+        .channel("notifications-realtime-list")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const nuevaNotif = payload.new;
+            setNotificaciones((prev) => [nuevaNotif, ...prev].slice(0, 5)); // actualiza lista visual
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [user]);
+
+  // 🔹 Loader mientras carga la data
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-[#ECEFF1]">
@@ -75,10 +108,11 @@ export default function PadreHome() {
     );
   }
 
+  // 🔹 Interfaz visual
   return (
     <div className="p-6 bg-[#ECEFF1] min-h-screen">
       <div className="max-w-6xl mx-auto space-y-8">
-        {/* Sección de instrucciones QR */}
+        {/* Sección QR */}
         <div className="bg-white rounded-2xl shadow-lg p-6 flex items-start gap-4">
           <div className="bg-[#17637A]/10 p-3 rounded-full">
             <QrCode size={36} className="text-[#17637A]" />
@@ -159,8 +193,14 @@ export default function PadreHome() {
             <ul className="divide-y divide-gray-200">
               {notificaciones.map((n) => (
                 <li key={n.id} className="py-3">
-                  <p className="text-gray-800">{n.message}</p>
-                  <p className="text-sm text-gray-500">{n.time}</p>
+                  <p className="text-gray-800 font-medium">{n.title}</p>
+                  <p className="text-gray-700">{n.message}</p>
+                  <p className="text-sm text-gray-500">
+                    {new Date(n.created_at).toLocaleString("es-GT", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })}
+                  </p>
                 </li>
               ))}
             </ul>
@@ -171,7 +211,7 @@ export default function PadreHome() {
           )}
         </div>
 
-        {/* Consejos o información adicional */}
+        {/* Información adicional */}
         <div className="bg-[#17637A]/10 rounded-2xl p-5 shadow-sm flex items-start gap-3">
           <Info size={28} className="text-[#17637A]" />
           <p className="text-gray-700 text-sm">
