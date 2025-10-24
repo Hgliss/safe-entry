@@ -51,7 +51,7 @@ export default function ScannerQR() {
   // ✅ Lectura exitosa del QR
   const onScanSuccess = async (decodedText) => {
     if (scannerRef.current) {
-      await scannerRef.current.stop();
+      await scannerRef.current.stop().catch(() => {});
       setIsScanning(false);
     }
 
@@ -67,6 +67,8 @@ export default function ScannerQR() {
   // 🧠 Validar QR de padre o tercero autorizado
   const validarQR = async (token) => {
     try {
+      console.log("🔍 Buscando token:", token);
+
       // 1️⃣ Buscar QR del padre o tutor
       const { data: qrPadre } = await supabase
         .from("guardian_child_qr")
@@ -91,8 +93,8 @@ export default function ScannerQR() {
       if (qrPadre && qrPadre.status === "active") {
         await registrarEvento({
           token,
-          guardian_id: qrPadre.guardian.id_person,
-          child_id: qrPadre.child.id_person,
+          guardian_id: qrPadre.guardian?.id_person,
+          child_id: qrPadre.child?.id_person,
         });
 
         setMessage(`✅ ${direction === "in" ? "Entrada" : "Salida"} del padre registrada`);
@@ -106,7 +108,7 @@ export default function ScannerQR() {
       }
 
       // 2️⃣ Buscar QR del tercero autorizado
-      const { data: qrTercero } = await supabase
+      const { data: qrTercero, error: errorTercero } = await supabase
         .from("child_authorization")
         .select(`
           id_authorization,
@@ -128,10 +130,34 @@ export default function ScannerQR() {
         .eq("qr_token", token)
         .maybeSingle();
 
-      if (qrTercero && qrTercero.status === "active") {
+      if (errorTercero) {
+        console.error("⚠️ Error al consultar child_authorization:", errorTercero);
+        setMessage("⚠️ Error al validar el código.");
+        return;
+      }
+
+      // ❗ Si no existe el QR en la tabla
+      if (!qrTercero) {
+        setMessage("❌ QR no encontrado o no válido.");
+        setScanResult({ estado: "inválido", color: "red" });
+        return;
+      }
+
+      // ❗ Si los datos relacionados son nulos
+      if (!qrTercero.authorized || !qrTercero.child) {
+        console.warn("⚠️ Faltan datos en child_authorization:", qrTercero);
+        setMessage("⚠️ Este QR tiene datos incompletos.");
+        setScanResult({ estado: "error", color: "red" });
+        return;
+      }
+
+      if (qrTercero.status === "active") {
+        // 📅 Manejar fechas correctamente
         const ahora = new Date();
-        const inicio = new Date(qrTercero.valid_from);
-        const fin = new Date(qrTercero.valid_to);
+        const inicio = new Date(`${qrTercero.valid_from}T00:00:00`);
+        const fin = new Date(`${qrTercero.valid_to}T23:59:59`);
+
+        console.log("📅 Fechas:", { ahora, inicio, fin });
 
         if (ahora < inicio) {
           setMessage("⏳ Este QR aún no está activo.");
@@ -143,13 +169,14 @@ export default function ScannerQR() {
           await supabase
             .from("child_authorization")
             .update({ status: "expired" })
-            .eq("id_authorization", qrTercero.id_authorization);
+            .eq("id_authorization", Number(qrTercero.id_authorization));
 
           setMessage("⛔ Este QR ha expirado.");
           setScanResult({ estado: "expirado", color: "gray", tipo: "tercero" });
           return;
         }
 
+        // ✅ QR válido del tercero
         await registrarEvento({
           token,
           guardian_id: qrTercero.authorized.id_person,
@@ -166,28 +193,25 @@ export default function ScannerQR() {
         return;
       }
 
-      // 3️⃣ Si no se encontró el QR en ninguna tabla
-      setMessage("❌ QR no reconocido.");
+      // ⚠️ Si el estado no es activo
+      setMessage("❌ QR inactivo o no autorizado.");
       setScanResult({ estado: "inválido", color: "red" });
     } catch (err) {
       console.error("⚠️ Error al validar el código:", err);
-      setMessage("⚠️ Error al validar el código.");
+      setMessage("⚠️ Error inesperado al validar el código.");
       setScanResult({ estado: "error", color: "red" });
     }
   };
 
   // 🪶 Registrar evento en guardian_scan_log
   const registrarEvento = async ({ token, guardian_id, child_id }) => {
-    // Asignar la ubicación según el modo
-    const location = direction === "in" ? "Entrada principal" : "Salida principal";
-
     const entry = {
       token,
       guardian_id,
       child_id,
       direction,
-      location,
       scanned_at: new Date().toISOString(),
+      location: direction === "in" ? "Entrada principal" : "Salida principal",
       status: "active",
     };
 
@@ -204,21 +228,26 @@ export default function ScannerQR() {
 
   // ♻️ Reanudar escaneo manualmente
   const reiniciarEscaneo = async () => {
-    if (scannerRef.current) {
-      try {
-        await scannerRef.current.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: 250 },
-          onScanSuccess,
-          onScanFailure
-        );
-        setIsScanning(true);
-        setMessage(`Escaneando ${direction === "in" ? "entrada" : "salida"}...`);
-        setScanResult(null);
-      } catch (error) {
-        console.error("Error al reanudar el escaneo:", error);
-        setMessage("No se pudo reiniciar el escáner.");
-      }
+    if (!scannerRef.current) return;
+
+    try {
+      // Detener escáner si sigue activo
+      await scannerRef.current.stop().catch(() => {});
+      // Esperar un poco antes de reiniciar
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      await scannerRef.current.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        onScanSuccess,
+        onScanFailure
+      );
+      setIsScanning(true);
+      setMessage(`Escaneando ${direction === "in" ? "entrada" : "salida"}...`);
+      setScanResult(null);
+    } catch (error) {
+      console.error("Error al reanudar el escaneo:", error);
+      setMessage("No se pudo reiniciar el escáner. Espera un momento e intenta otra vez.");
     }
   };
 
@@ -229,6 +258,7 @@ export default function ScannerQR() {
           Escáner de códigos QR
         </h1>
 
+        {/* 🔘 Botón único para alternar modo */}
         <button
           onClick={toggleDirection}
           className={`mb-4 px-4 py-2 rounded-lg text-white font-medium transition-colors ${
@@ -240,6 +270,7 @@ export default function ScannerQR() {
           {direction === "in" ? "🔼 Modo: Entrada" : "🔽 Modo: Salida"}
         </button>
 
+        {/* 📸 Contenedor del lector QR */}
         <div
           id="qr-reader"
           ref={qrReaderRef}
@@ -249,6 +280,7 @@ export default function ScannerQR() {
 
         <p className="text-gray-700 mb-3">{message}</p>
 
+        {/* 🧾 Resultado visual */}
         {scanResult && (
           <div
             className={`p-4 rounded-xl border-2 mt-4 ${
@@ -263,7 +295,9 @@ export default function ScannerQR() {
           >
             <h2 className="text-lg font-semibold">
               {scanResult.estado === "válido"
-                ? `✅ ${scanResult.tipo === "padre" ? "QR Padre" : "QR Tercero"} válido`
+                ? `✅ ${
+                    scanResult.tipo === "padre" ? "QR Padre" : "QR Tercero"
+                  } válido`
                 : scanResult.estado === "expirado"
                 ? "⛔ QR expirado"
                 : scanResult.estado === "pendiente"
